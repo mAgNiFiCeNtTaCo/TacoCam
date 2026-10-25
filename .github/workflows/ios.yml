@@ -1,0 +1,83 @@
+name: iPhone app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools
+        run: |
+          xcodebuild -version
+          brew install xcodegen
+          xcodegen --version
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build TacoCam.app (Release, unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project TacoCam.xcodeproj -scheme TacoCam -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee xcodebuild.log | grep -E "(error|warning):|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" xcodebuild.log || { echo "::error::Build failed"; grep -E "error:" xcodebuild.log | sort -u | head -80; exit 1; }
+
+      - name: Package TacoCam.ipa
+        run: |
+          APP=build/Build/Products/Release-iphoneos/TacoCam.app
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist"
+          rm -rf Payload TacoCam.ipa
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry TacoCam.ipa Payload
+          ls -la TacoCam.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TacoCam-ipa
+          path: ios/TacoCam.ipa
+          if-no-files-found: error
+
+      - name: Unit tests (framing + Annex-B, iOS Simulator)
+        run: |
+          set -o pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          data = json.load(sys.stdin)["devices"]
+          best = None
+          for runtime, devs in data.items():
+              m = re.search(r"iOS-(\d+)-(\d+)", runtime)
+              if not m:
+                  continue
+              ver = (int(m.group(1)), int(m.group(2)))
+              for d in devs:
+                  if d.get("isAvailable") and d["name"].startswith("iPhone"):
+                      if best is None or ver > best[0]:
+                          best = (ver, d["udid"], d["name"])
+          print(best[1] if best else "")
+          ')
+          echo "Simulator: $UDID"
+          test -n "$UDID"
+          xcodebuild test -project TacoCam.xcodeproj -scheme TacoCamTests \
+            -destination "id=$UDID" -derivedDataPath build-tests \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee test.log | grep -E "error:|Test Case|Executed|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" test.log || { echo "::error::Unit tests failed"; tail -60 test.log; exit 1; }

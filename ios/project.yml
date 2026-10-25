@@ -1,0 +1,63 @@
+name: TacoCam
+options:
+  bundleIdPrefix: com.tacogabs
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  TacoCam:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: TacoCam
+        excludes:
+          - Info.plist
+    settings:
+      base:
+        PRODUCT_NAME: TacoCam
+        PRODUCT_BUNDLE_IDENTIFIER: com.tacogabs.tacocam
+        INFOPLIST_FILE: TacoCam/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        ENABLE_BITCODE: NO
+  TacoCamTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: TacoCamTests
+      - path: TacoCam/Protocol.swift
+      - path: TacoCam/AnnexB.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tacogabs.tacocam.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  TacoCam:
+    build:
+      targets:
+        TacoCam: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  TacoCamTests:
+    build:
+      targets:
+        TacoCamTests: [test]
+    test:
+      config: Debug
+      targets:
+        - TacoCamTests
