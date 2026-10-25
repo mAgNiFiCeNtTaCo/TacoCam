@@ -1,0 +1,11 @@
+dist/
+settings.json
+settings.bad.json
+*.log
+__pycache__/
+*.pyc
+.pytest_cache/
+ios/*.xcodeproj/
+ios/build/
+DerivedData/
+.nodeterm/
