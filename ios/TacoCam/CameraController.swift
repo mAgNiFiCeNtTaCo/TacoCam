@@ -74,22 +74,25 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     /// Called on the session queue (runtime errors, interruptions).
     var onEvent: ((String) -> Void)?
 
+    // Raw names: the Swift spellings of these constants differ between SDK versions.
     override init() {
         super.init()
         NotificationCenter.default.addObserver(self, selector: #selector(runtimeError(_:)),
-                                               name: .AVCaptureSessionRuntimeError, object: session)
+                                               name: Notification.Name("AVCaptureSessionRuntimeErrorNotification"),
+                                               object: session)
         NotificationCenter.default.addObserver(self, selector: #selector(interrupted(_:)),
-                                               name: .AVCaptureSessionWasInterrupted, object: session)
+                                               name: Notification.Name("AVCaptureSessionWasInterruptedNotification"),
+                                               object: session)
     }
 
     @objc private func runtimeError(_ n: Notification) {
-        let err = n.userInfo?[AVCaptureSessionErrorKey] as? NSError
+        let err = n.userInfo?["AVCaptureSessionErrorKey"] as? NSError
         onEvent?("Camera error: \(err?.localizedDescription ?? "unknown")")
     }
 
     @objc private func interrupted(_ n: Notification) {
         var why = "unknown"
-        if let raw = n.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int,
+        if let raw = n.userInfo?["AVCaptureSessionInterruptionReasonKey"] as? Int,
            let reason = AVCaptureSession.InterruptionReason(rawValue: raw) {
             switch reason {
             case .videoDeviceNotAvailableInBackground: why = "app in background"
@@ -524,6 +527,10 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         var problem: String? = nil
         session.beginConfiguration()
         defer { session.commitConfiguration() }
+        // Without this the session preset can overwrite the activeFormat chosen below on commit.
+        if session.sessionPreset != .inputPriority && session.canSetSessionPreset(.inputPriority) {
+            session.sessionPreset = .inputPriority
+        }
 
         if input?.device.uniqueID != d.uniqueID {
             if let old = input {

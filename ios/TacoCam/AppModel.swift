@@ -83,6 +83,7 @@ final class AppModel: ObservableObject {
         thermalChanged()
         addresses = DeviceInfo.addresses()
         server.start()
+        updateIdleTimer()
 
         heartbeat = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.heartbeatTick()
@@ -297,7 +298,8 @@ final class AppModel: ObservableObject {
     }
 
     private func updateIdleTimer() {
-        UIApplication.shared.isIdleTimerDisabled = connected && appActive
+        // Keep the screen on while the app is open: if the phone locks, iOS stops the camera and listener.
+        UIApplication.shared.isIdleTimerDisabled = appActive
     }
 
     func scenePhaseChanged(_ phase: ScenePhase) {
@@ -396,15 +398,14 @@ final class AppModel: ObservableObject {
                 return ((a % 360) + 360) % 360
             }
         }
-        let back: Int
+        // Same table for both cameras: AVFoundation's rotation angles (and AVCam's orientation mapping)
+        // are camera-independent, and the front frames are sent unmirrored.
         switch lastUprightOrientation {
-        case .landscapeLeft: back = 0
-        case .portraitUpsideDown: back = 270
-        case .landscapeRight: back = 180
-        default: back = 90
+        case .landscapeLeft: return 0
+        case .portraitUpsideDown: return 270
+        case .landscapeRight: return 180
+        default: return 90
         }
-        // The front sensor sits turned 180 degrees relative to the back one.
-        return effective.camera == "front" ? (back + 180) % 360 : back
     }
 
     private func orientationChanged() {
