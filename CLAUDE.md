@@ -19,7 +19,7 @@ explain in plain words and finish jobs end to end.
 
 ## Commands
 - Run: `Taco Cam.bat` (or `Taco Cam (console).bat`). Tests: `python -m pytest pc/tests -q`.
-- iPhone build: push `ios/` to `main` (repo mAgNiFiCeNtTaCo/TacoCam, push allowed), `gh run watch <id>`,
+- iPhone build: push `ios/` to `main` (public repo mAgNiFiCeNtTaCo/TacoCam, push allowed), `gh run watch <id>`,
   `gh run download <id> -n TacoCam-ipa -D dist`.
 - Install on the phone: iloader (`Downloads\iloader`), Import IPA. Sideloadly login is broken (-80046).
 
@@ -31,7 +31,8 @@ explain in plain words and finish jobs end to end.
   restarting it (OBS may be live).
 - Only one PC client at a time: connecting a probe to the phone kicks the window's connection.
 - Keep the PC output at 1920x1080, rotate 0: the OBS scene rotates the source 90 degrees itself.
-- macOS build minutes are limited (private repo, 10x billing): read Swift carefully before each push.
+- The GitHub repo is PUBLIC (MIT): never commit settings.json, logs, the IPA, personal paths (use %APPDATA%)
+  or names. Swift is only compiled on GitHub: read it carefully before each push.
 
 ## Gotchas
 - The `gh` token needs the `workflow` scope to push `.github/workflows/*`.

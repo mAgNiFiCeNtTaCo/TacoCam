@@ -46,5 +46,8 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   Amazon IVS disconnects streams with B-frames (NVENC default). Upload measured ~71 Mbps.
 - One full test run had a MemoryError in Pillow's Tk image code (`test_app_real.py`); the file passed 3 runs
   alone. Watch for it.
+- GitHub repo made **public** at the user's request (MIT license). Before that, history was rewritten to replace
+  the Windows user path in `specs/*.md` with `%APPDATA%` (backup bundle kept in the session scratchpad only),
+  force-pushed, and the old build run deleted. Mac build minutes are free for public repos.
 - Open: check upright picture with the phone held upright, front camera and the rest of `docs/QA.md`;
   reinstall with iloader every 7 days; update `docs/INSTALL_IPHONE.md` to iloader (still says Sideloadly).
