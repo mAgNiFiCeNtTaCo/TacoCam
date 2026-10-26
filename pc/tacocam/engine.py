@@ -12,6 +12,7 @@ import collections
 import copy
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -19,6 +20,7 @@ from . import pipeline, protocol
 from .decoder import Decoder
 from .link import Link, split_host
 from . import vcam as vcam_mod
+from .clips import ClipBuffer, clip_name, clips_folder, write_mp4
 
 DEFAULT_SETTINGS = {
     "phone": {
@@ -109,6 +111,7 @@ class Engine:
         self._vcam_reopen = True
         self._error = None
         self._fps_in = RateMeter()
+        self._clips = ClipBuffer()
         self._fps_out = RateMeter()
         self._bytes_in = RateMeter()
 
@@ -250,6 +253,21 @@ class Engine:
             return None
         return sx, sy
 
+    def save_clip(self, seconds=30, rotation=0, folder=None):
+        """Writes the last `seconds` of the phone's video to an MP4 (no re-encoding). Blocking (call it from a
+        worker thread). Returns (path, length in seconds); raises ValueError when there is nothing to save."""
+        packets = self._clips.take(seconds)
+        if not packets:
+            raise ValueError("no video from the iPhone yet")
+        path = Path(folder or clips_folder()) / clip_name()
+        length = write_mp4(path, packets, rotation)
+        self._log(f"Saved clip {path.name} ({length:.0f} s)")
+        return path, length
+
+    def clip_seconds(self):
+        """How many seconds of video are ready to save."""
+        return self._clips.seconds()
+
     def request_keyframe(self):
         link = self._link
         if link is not None:
@@ -294,6 +312,7 @@ class Engine:
         now = time.monotonic()
         self._fps_in.add(1, now)
         self._bytes_in.add(nbytes, now)
+        self._clips.add(flags, pts_us, data)
         dec = self._decoder
         if dec is not None:
             dec.submit(flags, pts_us, data)

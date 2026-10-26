@@ -74,6 +74,8 @@ def main():
     root.report_callback_exception = report
     app = App(root, Engine)
     log.info("Taco Cam window started")
+    if "--minimized" in sys.argv:  # the Startup shortcut (start with Windows)
+        root.iconify()
     root.mainloop()
     del app, lock
     return 0

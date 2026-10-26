@@ -45,6 +45,8 @@ DEFAULTS = {
         "when_disconnected": "card",
         "follow_obs": False,
         "hotkeys": True,
+        "clip_seconds": 30,
+        "clip_rotate": "auto",
     },
     "presets": [],
 }
@@ -66,6 +68,8 @@ ENUMS = {
     "pc.fit": {"crop", "fit", "stretch"},
     "pc.fps_out": {24, 25, 30, 60},
     "pc.when_disconnected": {"card", "last", "black"},
+    "pc.clip_seconds": {15, 30, 60},
+    "pc.clip_rotate": {"auto", 0, 90, 180, 270},
 }
 
 RANGES = {

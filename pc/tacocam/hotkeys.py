@@ -1,4 +1,5 @@
-"""System-wide hotkeys Ctrl+Alt+1..9 (they work while OBS or any other window has the focus).
+"""System-wide hotkeys Ctrl+Alt+0..9 (they work while OBS or any other window has the focus).
+1..9 apply presets, 0 saves a clip.
 
 A background thread owns the registrations and its own message loop (WM_HOTKEY goes to the thread that
 registered it). Presses land in a queue that the Tk thread drains; nothing here touches Tk.
@@ -15,8 +16,8 @@ BASE_ID = 0x7A00
 
 
 class GlobalHotkeys:
-    def __init__(self, count=9):
-        self.count = count
+    def __init__(self, numbers=range(10)):
+        self.numbers = list(numbers)
         self.presses = queue.Queue()
         self.failed = []          # numbers another program already uses
         self._thread = None
@@ -40,7 +41,7 @@ class GlobalHotkeys:
         self._thread = None
 
     def pressed(self):
-        """Numbers (1..9) pressed since the last call."""
+        """Numbers (0..9) pressed since the last call."""
         out = []
         while True:
             try:
@@ -52,7 +53,7 @@ class GlobalHotkeys:
         user32 = ctypes.windll.user32
         self._tid = ctypes.windll.kernel32.GetCurrentThreadId()
         registered = []
-        for n in range(1, self.count + 1):
+        for n in self.numbers:
             if user32.RegisterHotKey(None, BASE_ID + n, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 0x30 + n):
                 registered.append(n)
             else:
@@ -61,7 +62,7 @@ class GlobalHotkeys:
         msg = W.MSG()
         try:
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-                if msg.message == WM_HOTKEY and BASE_ID < msg.wParam <= BASE_ID + self.count:
+                if msg.message == WM_HOTKEY and BASE_ID <= msg.wParam <= BASE_ID + 9:
                     self.presses.put(int(msg.wParam - BASE_ID))
         finally:
             for n in registered:

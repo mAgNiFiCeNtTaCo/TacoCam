@@ -11,7 +11,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from tkinter import messagebox, simpledialog, ttk
 
+import queue
+import threading
+
 from . import presets as P
+from . import shortcuts
+from .clips import clips_folder
 from . import settings as S
 from .hotkeys import GlobalHotkeys
 from .obsfollow import ObsFollower
@@ -108,8 +113,16 @@ def describe_status(st, vcam_name="Taco Cam", now=None):
     out = {"conn": conn, "conn_color": color}
 
     bat = phone.get("battery")
+    out["battery_color"] = MUTED
     if isinstance(bat, (int, float)):
         out["battery"] = f"Phone battery {round(bat * 100)}%" + (" (charging)" if phone.get("charging") else "")
+        if 0 < bat <= 0.30 and not phone.get("charging"):  # 0 = unknown
+            if bat <= 0.15:
+                out["battery"] += ": NOT charging, plug in the charger now!"
+                out["battery_color"] = BAD
+            else:
+                out["battery"] += ": not charging, plug in the charger"
+                out["battery_color"] = WARN
     else:
         out["battery"] = ""
     th = phone.get("thermal")
@@ -224,6 +237,11 @@ class App:
         self.preset_buttons = []
         self._active_preset = None
         self._expiry_logged = None
+        self._battery_logged = None
+        self._was_charging = None
+        self._clip_thread = None
+        self._clip_results = queue.Queue()
+        self.autostart_var = tk.BooleanVar(master=root, value=False)
         self.lock_focus = tk.BooleanVar(master=root, value=True)
         self.lock_exposure = tk.BooleanVar(master=root, value=False)
         self.lock_colors = tk.BooleanVar(master=root, value=True)
@@ -323,6 +341,10 @@ class App:
         self.hint_label.grid(row=3, column=0, sticky="w", pady=(2, 0))
         self.preset_bar = ttk.Frame(left, style="Dark.TFrame")
         self.preset_bar.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+        self.clip_btn = ttk.Button(self.preset_bar, text="Save clip", style="Accent.TButton", command=self.save_clip)
+        self.clip_btn.pack(side="right")
+        Tooltip(self.clip_btn, "Saves the last seconds of the camera as an MP4 in Videos\\Taco Cam clips "
+                               "(Ctrl+Alt+0 from any program).")
 
         zoombar = ttk.Frame(left, style="Dark.TFrame")
         zoombar.grid(row=1, column=0, sticky="ew", pady=(8, 0))
@@ -346,6 +368,7 @@ class App:
         self._tab_presets()
         self._tab_output()
         self._tab_phone()
+        self._tab_extras()
         self._tab_log()
 
         # status bar
@@ -693,7 +716,7 @@ class App:
         elif self.hotkeys.failed:
             hk = "Ctrl+Alt+" + ", ".join(map(str, self.hotkeys.failed)) + " are taken by another program; the others work"
         else:
-            hk = "Ctrl+Alt+1..9 are ready"
+            hk = "Ctrl+Alt+1..9 (presets) and Ctrl+Alt+0 (save clip) are ready"
         self.hotkey_label.configure(text=hk)
         if self.obs is None:
             text = "Follow OBS is off"
@@ -710,7 +733,21 @@ class App:
     def _background_tick(self):
         if self.hotkeys is not None:
             for n in self.hotkeys.pressed():
-                self.apply_preset(n - 1, f"Ctrl+Alt+{n}")
+                if n == 0:
+                    self.save_clip()
+                else:
+                    self.apply_preset(n - 1, f"Ctrl+Alt+{n}")
+        while True:
+            try:
+                ok, what, length = self._clip_results.get_nowait()
+            except queue.Empty:
+                break
+            text = (f"Saved clip: {Path(what).name} ({length:.0f} s) in Videos\\Taco Cam clips" if ok
+                    else f"Clip not saved: {what}")
+            self.set_hint(text)
+            self.clip_label.configure(text=text)
+        secs = self.settings["pc"].get("clip_seconds", 30)
+        self.clip_btn.configure(text=f"Save last {secs} s")
         snap = None
         if self.obs is not None:
             snap = self.obs.snapshot()
@@ -723,6 +760,78 @@ class App:
                 if i is not None:
                     self.apply_preset(i, f'OBS scene "{scene}"')
         self._show_background_status(snap)
+
+    def _tab_extras(self):
+        p = self._page("Extras")
+        self._head(p, "Save-the-hit clips")
+        ttk.Label(p, text="Ctrl+Alt+0 (from any program) or the Save button under the picture saves the last "
+                          "seconds of the camera as an MP4 in Videos\\Taco Cam clips: full phone quality, ready "
+                          "for TikTok / Instagram / X. It never touches your stream.",
+                  style="Muted.TLabel", wraplength=490, justify="left").pack(anchor="w")
+        self._add(p, "pc.clip_seconds", Choice(p, "Clip length", [(15, "15 s"), (30, "30 s"), (60, "60 s")],
+                  hint="How far back a clip reaches."))
+        self._add(p, "pc.clip_rotate", Choice(p, "Clip turn", [("auto", "Auto"), (0, "0"), (90, "90"), (180, "180"),
+                                                              (270, "270")],
+                  hint="Auto = upright for how the phone is held. Or pick the clockwise turn in degrees."))
+        row = ttk.Frame(p)
+        row.pack(fill="x", pady=4)
+        ttk.Button(row, text="Save clip now", command=self.save_clip).pack(side="left")
+        ttk.Button(row, text="Open clips folder", command=self.open_clips_folder).pack(side="left", padx=(6, 0))
+        self.clip_label = ttk.Label(p, text="", style="Muted.TLabel", wraplength=490, justify="left")
+        self.clip_label.pack(anchor="w")
+        self._head(p, "Start automatically")
+        try:
+            self.autostart_var.set(shortcuts.startup_shortcut().exists())
+        except Exception:
+            self.autostart_var.set(False)
+        ttk.Checkbutton(p, text="Open Taco Cam (minimized) when I log in to Windows", variable=self.autostart_var,
+                        command=self.toggle_autostart).pack(anchor="w")
+        ttk.Label(p, text="So it is always ready before you start OBS.", style="Muted.TLabel").pack(anchor="w")
+        self._head(p, "Phone battery")
+        ttk.Label(p, text="The bottom bar turns orange when the phone is not charging and below 30%, red below 15%, "
+                          "and says when the charger gets unplugged.", style="Muted.TLabel", wraplength=490,
+                  justify="left").pack(anchor="w")
+
+    # ---- clips
+    def _clip_rotation(self):
+        r = self.settings["pc"].get("clip_rotate", "auto")
+        if r == "auto":
+            r = ((self._status or {}).get("phone") or {}).get("rotation_hint", 0)
+        return int(r) % 360 if isinstance(r, int) and int(r) % 90 == 0 else 0
+
+    def save_clip(self):
+        save = getattr(self.engine, "save_clip", None)
+        if save is None:
+            return
+        if self._clip_thread is not None and self._clip_thread.is_alive():
+            self.set_hint("Still saving the last clip...")
+            return
+        secs, rot = self.settings["pc"].get("clip_seconds", 30), self._clip_rotation()
+
+        def work():
+            try:
+                path, length = save(secs, rot)
+                self._clip_results.put((True, str(path), length))
+            except Exception as e:  # nothing to save yet, disk full, ...
+                self._clip_results.put((False, str(e), 0))
+        self._clip_thread = threading.Thread(target=work, name="tacocam-clip", daemon=True)
+        self._clip_thread.start()
+        self.set_hint("Saving clip...")
+
+    def open_clips_folder(self):
+        try:
+            os.startfile(str(clips_folder()))
+        except OSError as e:
+            self.set_hint(f"Could not open the clips folder: {e}")
+
+    def toggle_autostart(self):
+        try:
+            on = shortcuts.set_autostart(self.autostart_var.get())
+            self.log("Taco Cam starts with Windows" if on else "Taco Cam no longer starts with Windows")
+        except Exception as e:
+            on = shortcuts.startup_shortcut().exists()
+            self.set_hint(f"Could not change the start-with-Windows shortcut: {e}")
+        self.autostart_var.set(on)
 
     # ---- zoom buttons
     def _rebuild_zoom_buttons(self, lenses):
@@ -927,7 +1036,18 @@ class App:
         d = describe_status(st, self.settings["pc"].get("vcam_name", "Taco Cam"))
         self.last_status_text = d
         self.conn_label.configure(text=d["conn"], foreground=d["conn_color"])
-        self.battery_label.configure(text=d["battery"])
+        self.battery_label.configure(text=d["battery"], foreground=d["battery_color"])
+        if d["battery_color"] != MUTED and d["battery_color"] != self._battery_logged:
+            self._battery_logged = d["battery_color"]
+            self.log("Phone " + d["battery"])
+        elif d["battery_color"] == MUTED:
+            self._battery_logged = None
+        phone = (st or {}).get("phone") or {}
+        charging = phone.get("charging") if (st or {}).get("link") == "connected" else None
+        if self._was_charging is True and charging is False:
+            self.set_hint("The phone's charger was unplugged")
+            self.log("The phone's charger was unplugged")
+        self._was_charging = charging
         self.thermal_label.configure(text=d["thermal"], foreground=d["thermal_color"])
         stats = d["stats"]
         if d["phone_problem"]:
