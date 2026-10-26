@@ -21,7 +21,8 @@ explain in plain words and finish jobs end to end.
 - `dist/TacoCam.ipa` (gitignored), `settings.json` (gitignored, written by the window), `taco-cam.log`.
 
 ## Commands
-- Run: `Taco Cam.bat` (or `Taco Cam (console).bat`). Tests: `python -m pytest pc/tests -q`.
+- Run: `Taco Cam.bat` (or `Taco Cam (console).bat`), or the Desktop/Start menu shortcuts made by
+  `python pc/tools/make_shortcuts.py` (carry AppUserModelID TacoCam.PC). Tests: `python -m pytest pc/tests -q`.
 - iPhone build: push `ios/` to `main` (public repo mAgNiFiCeNtTaCo/TacoCam, push allowed), `gh run watch <id>`,
   `gh run download <id> -n TacoCam-ipa -D dist`.
 - Install on the phone: iloader (`Downloads\iloader`), Import IPA. Sideloadly login is broken (-80046).

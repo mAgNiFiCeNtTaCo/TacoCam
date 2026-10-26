@@ -23,11 +23,17 @@ You need an iPhone 11 or newer (older phones have no 0.5x lens).
 4. Install **iTunes or Apple Devices** from the Microsoft Store if you haven't: Windows needs Apple's USB
    driver to talk to the iPhone.
 
+## Shortcuts with the Taco Cam icon (optional)
+
+Run `python pc/tools/make_shortcuts.py` once: it puts a **Taco Cam** shortcut (orange camera icon) on your
+Desktop and in the Start menu. Right-click it > Pin to taskbar if you like. `--remove` takes them away.
+
 ## Daily use
 
 1. Plug the iPhone into the PC with the cable. If it asks **Trust This Computer?**, tap **Trust**.
 2. Open **Taco Cam** on the iPhone and leave it open (the screen stays on; you can dim it, see below).
-3. Double-click **`Taco Cam.bat`**. The window opens and the picture appears within a few seconds.
+3. Double-click **`Taco Cam.bat`** (or the **Taco Cam** shortcut on your Desktop / Start menu). The window
+   opens and the picture appears within a few seconds.
 4. In OBS, use the **Taco Cam** camera (next section).
 
 Only one Taco Cam window can run at a time. Closing the window stops everything cleanly.
