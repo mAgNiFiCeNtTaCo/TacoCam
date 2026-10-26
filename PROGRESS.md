@@ -4,22 +4,48 @@ Taco Cam: our own iPhone-as-USB-webcam app (what Iriun Webcam does, every featur
 zoom-out). An iPhone app sends H.264/HEVC over the USB cable; a PC window shows it and feeds OBS through a
 DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break stream.
 
-## Where it stands (2026-10-25)
-- **Working end to end with the real phone** (iPhone 11, iOS 27.0.1): USB connection, live picture in the PC
-  window and in the "Taco Cam" camera (checked by grabbing a frame with ffmpeg), 0.5x lens found.
-- iPhone app: built on GitHub Actions (`iPhone app` workflow, first run 40247409884 green, 14 iOS tests pass);
-  `dist/TacoCam.ipa` (gitignored) installed on the phone with **iloader** (Sideloadly login is broken by
-  Apple since 2026-10-21, error -80046). Free Apple ID: reinstall every 7 days.
-- PC: `Taco Cam.bat`; tests `python -m pytest pc/tests -q` (246 tests).
-- Settings in use for Whatnot (`settings.json`): phone back camera, 1080p, 30 fps, H.264, 20 Mbps,
-  stabilization off; PC output 1920x1080 @ 30, rotate 0 (the OBS scene turns the source 90 degrees to fill
-  its 1080x1920 canvas).
+## Where it stands (2026-10-25, evening)
+- **Working end to end with the real phone** (iPhone 11, iOS 27.0.1) over USB into OBS (Whatnot scene).
+- iPhone app: GitHub Actions build (last green run 40258964830, 14 iOS tests), `dist/TacoCam.ipa` (gitignored)
+  installed with **iloader** (Sideloadly login broken since 2026-10-21, -80046). Free Apple ID: reinstall every
+  7 days; the PC window's bottom bar shows the expiry date (orange 2 days ahead).
+- PC: `Taco Cam.bat` or the Desktop / Start menu **Taco Cam** shortcuts (`pc/tools/make_shortcuts.py`); own
+  icon and taskbar entry. Tests `python -m pytest pc/tests -q` (262).
+- GitHub repo is **public** (MIT): https://github.com/mAgNiFiCeNtTaCo/TacoCam.
+- Settings in use for Whatnot: back camera, 1080p, 30 fps, H.264, 20 Mbps, stabilization off; PC output
+  1920x1080 @ 30, rotate 0 (the OBS scene turns the source 90 degrees). Presets **1 Wide Table** (0.5x,
+  colors held) and **2 Close UP** (1.6x, focus + colors held), Ctrl+Alt+1 / Ctrl+Alt+2; Follow OBS off.
 - OBS's stream output (WHIP to Whatnot/Amazon IVS, x264 veryfast/zerolatency, 3500 kbps CBR, keyframe 2 s,
   Opus 160) is Whatnot's required setup: leave it alone.
-- Not yet checked on the phone: picture upright when the phone is held upright, front camera, manual
-  exposure/white balance/torch round trips (checklist in `docs/QA.md`).
+- Not possible on this phone's back camera: anti-flicker and exact focus/ISO/shutter/white-balance values
+  (Apple refuses them on the combined Dual Wide camera); "manual" there means hold.
+- Not yet checked on the phone: front camera, picture upright with the phone held upright (`docs/QA.md`).
 
 ## Log
+### 2026-10-25 (evening): Public repo, own icon, presets, expiry warning, back-camera holds
+- Repo made **public** with an MIT license; history rewritten first to replace the Windows user path in
+  `specs/*.md` with `%APPDATA%` (old build run deleted; old commit 99059ad may stay reachable by SHA).
+- Window icon: Windows grouped the Tk window with other pythonw apps (BabyG panel's gabsugc icon). Fixed with
+  AppUserModelID `TacoCam.PC` + `pc/tacocam/assets/taco-cam.ico` (drawn by `pc/tools/make_icon.py`). Using
+  `iconbitmap` and `iconphoto` together gave a blank icon (tested), so only `iconbitmap`.
+- `pc/tools/make_shortcuts.py`: Desktop + Start menu shortcuts carrying the same AppUserModelID (plain COM via
+  ctypes, no pywin32), so a pinned shortcut and the window share one taskbar button.
+- Presets (`pc/tacocam/presets.py`, Presets tab, buttons under the preview): picture settings only (zoom,
+  focus, exposure, colors, light, anti-flicker), lock boxes use the phone's new STATE `live` values, global
+  Ctrl+Alt+1..9 (`hotkeys.py`, RegisterHotKey thread), optional Follow OBS (`obsfollow.py` polls
+  GetCurrentProgramScene once a second via `obsws.py`, copied from Whatnot; read-only; tested against the real
+  OBS: scene "Scene").
+- iPhone: STATE `app_expires` (from embedded.mobileprovision) + phone-screen warning; STATE `live`;
+  `anti_flicker` (fixed flicker-safe shutter, ISO steered from the meter). CONTRACT.md updated.
+- Found on the real phone: the back camera (Dual Wide virtual device) refuses a lens position, custom exposure
+  and custom white-balance gains, so locks and anti-flicker were refused. Fix: "manual" falls back to holding
+  (one-shot autofocus on the middle, then locked; exposure / white balance locked); caps flags `focus_lock`,
+  `exposure_manual`, `wb_manual`, `anti_flicker`; the PC greys out what can't work. Verified: no refusals, close-up
+  frame sharp in the middle. Anti-flicker on this back camera would need single-lens mode (lens-switch pause):
+  not built, only if the user sees flicker.
+- Fixed the focus distance tip (lens position 0 = closest). 262 tests. `docs/INSTALL_IPHONE.md` now iloader.
+- Open: front camera + upright check; anti-flicker via single-lens mode only if flicker shows up.
+
 ### 2026-10-25: Team build, first iPhone build, first real-phone run
 - Nodeterm team (orchestrator + iPhone, PC engine, PC app stations; details in `WORKFLOW.md`) wrote
   `CONTRACT.md`, the iPhone app (`ios/`), the engine + fake phone + virtual camera (`pc/tacocam`,

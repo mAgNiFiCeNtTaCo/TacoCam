@@ -17,6 +17,8 @@ explain in plain words and finish jobs end to end.
 - `pc/tacocam/assets/taco-cam.ico`: window/taskbar icon, drawn by `pc/tools/make_icon.py`. `__main__.py` sets the
   AppUserModelID `TacoCam.PC` (else Windows groups it with other pythonw apps) and uses only `iconbitmap`
   (adding `iconphoto` too gives a blank icon).
+- `pc/tacocam/presets.py` (camera presets), `hotkeys.py` (global Ctrl+Alt+1..9), `obsfollow.py` + `obsws.py`
+  (read-only: which OBS scene is live; obsws copied from the Whatnot project).
 - `pc/tools/fake_phone.py`: test iPhone on 127.0.0.1:47777. `pc/vcam/`: Unity Capture DLLs + admin install scripts.
 - `dist/TacoCam.ipa` (gitignored), `settings.json` (gitignored, written by the window), `taco-cam.log`.
 
@@ -39,6 +41,8 @@ explain in plain words and finish jobs end to end.
   or names. Swift is only compiled on GitHub: read it carefully before each push.
 
 ## Gotchas
+- The iPhone back camera is a virtual device (Dual Wide / Triple): no lens position, custom ISO/shutter,
+  custom white-balance gains or anti-flicker. "manual" there means hold (CONTRACT section 5 caps flags).
 - The `gh` token needs the `workflow` scope to push `.github/workflows/*`.
 - 4K output (2160x3840) is too slow in Python at 60 fps (~30 ms/frame); 1080p output is fine.
 - iOS stops the camera in the background: the phone app must stay open on screen (Dim mode saves battery).
