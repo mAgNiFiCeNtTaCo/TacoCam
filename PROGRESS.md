@@ -4,7 +4,7 @@ Taco Cam: our own iPhone-as-USB-webcam app (what Iriun Webcam does, every featur
 zoom-out). An iPhone app sends H.264/HEVC over the USB cable; a PC window shows it and feeds OBS through a
 DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break stream.
 
-## Where it stands (2026-10-25, late)
+## Where it stands (2026-10-26)
 - **In use**: iPhone 11 (iOS 27.0.1) over USB into OBS (Whatnot scene) and into the Whatnot card scanner.
 - iPhone app: GitHub Actions build (last green run 40258964830), `dist/TacoCam.ipa` (gitignored) installed with
   **iloader**; expires ~2026-11-01 (bottom bar shows the date, orange 2 days ahead). Sideloadly is broken (-80046).
@@ -18,10 +18,47 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   to "Taco Cam (direct, full quality)".
 - OBS's stream output is Whatnot's required WHIP setup: leave it alone.
 - Not possible on this phone's back camera: anti-flicker, exact focus/ISO/shutter/white balance ("manual" = hold).
-- Open: front camera / upright check (`docs/QA.md`); scanner card finding on a busy background (54 failed
-  frames in Whatnot `data/debug` to tune against) if Test mode shows it's still unreliable.
+- 2026-10-26: smooth zoom (Zoom speed, default 0.5 s), Pre-show check button + check when OBS goes live (beep
+  if the picture stops while live), red status line naming why the phone camera paused. iPhone build 40406780074
+  in `dist/TacoCam.ipa`, **not yet installed**; window not yet restarted. Tests: 295.
+- Open: install the new IPA + restart the window, test glide / pause reasons on the real phone; front camera /
+  upright check (`docs/QA.md`); scanner card finding on a busy background (54 failed frames in Whatnot
+  `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-10-26: Smooth zoom, pre-show check, phone pause reasons
+- **Smooth zoom** (iPhone + PC): new phone setting `zoom_glide_s` (0..3 s, PC default 0.5, Camera tab "Zoom speed":
+  Instant / Smooth / Slow / Very slow). The phone ramps with `ramp(toVideoZoomFactor:withRate:)`, rate =
+  log2(to/from) / seconds; a camera switch or a stopped camera jumps. Holds of a preset (focus once / freeze
+  brightness / colors on the combined back camera) wait until the glide ends (started halfway they would lock on
+  the lens being left); AppModel applies once more glide + 0.15 s later. Applies to every zoom change (presets,
+  zoom buttons, wheel, slider), not only presets.
+- **Pause reasons**: STATE `interrupted` ("background" | "other_app" | "split_screen" | "too_hot" | "other") from
+  AVCaptureSession interruption notifications; the phone clears it itself on its 2 s heartbeat when the session
+  runs again (iOS doesn't always post "interruption ended"). PC: red "Phone: ..." line in the status bar; phone
+  screen shows it too. The PC counts a pause only while no picture arrives (fps_in < 1), so a stale flag can't
+  raise alarms.
+- **Pre-show check** (`pc/tacocam/precheck.py`, pure; window in `app.py`): button under the picture; lists USB,
+  picture coming in, 1080p, charging, heat, iPhone app days left, Taco Cam camera, OBS output 1920x1080 turn 0,
+  scanner reading, Dim tip, Do Not Disturb reminder; refreshes every second while open. Runs by itself when OBS
+  starts streaming (`pc.check_on_live`, Extras tab, default on): all good = a note, problems = window + beep.
+  While live it beeps once when the picture is gone for 3 s (LOST_ALERT_S).
+- `obsfollow.py` also polls `GetStreamStatus` (read-only); the watcher now runs for Follow OBS **or** the live
+  check, and presets follow scenes only with Follow OBS on (changed `test_window_follows_obs_scene`). Checked
+  against the real OBS: websocket on, outputActive False, scene "Scene".
+- Tests: 295 pass (11 new in `test_showready.py`, zoom_glide_s round trip in test_engine_e2e). conftest swaps
+  `app.ObsFollower` for `QuietObs` so test windows never talk to the real OBS. Fake phone: `zoom_glide_s`,
+  `interrupted` + `set_interrupted()`, console `pause [reason]` / `resume`.
+- iPhone build: GitHub run 40406780074 green; new `dist/TacoCam.ipa` downloaded (old one kept as
+  `dist/TacoCam-previous.ipa`). Not yet installed on the phone; the PC window still runs the old code until it
+  is restarted (not restarted: OBS might be live).
+- Decided against: an "interrupted" card on the OBS output (viewers would see it; the normal waiting card shows
+  after 3 s as before); a separate zoom speed for the phone-screen pinch.
+- Same session, outside the project: a `fixterm` command (`%USERPROFILE%\.local\bin\fixterm.cmd`) + user skill
+  `/fix-terminal` for terminals that type mouse codes after a crashed TUI (shared lesson in the brain).
+- Open: install the new IPA with iloader (also renews the 7 days; the current copy expires ~2026-11-01), restart
+  the window, then check on the real phone that the glide looks smooth and that FaceTime shows "Another app ...".
+
 ### 2026-10-25 (late): clips, start with Windows, battery warning, scanner feed
 - **Save-the-hit clips** (`clips.py`): ring buffer of the phone's own H.264/HEVC packets (65 s, 400 MB cap), MP4
   without re-encoding, upright via the tkhd display matrix (bytes taken from ffmpeg's `-display_rotation`);

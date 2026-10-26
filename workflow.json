@@ -138,6 +138,31 @@
         "Shared-memory frames: double-buffer and do the conversion on the writer, or readers collide with writes",
         "Never write binary-looking escapes through bash heredocs: they became real NUL bytes"
       ]
+    },
+    {
+      "title": "Smooth zoom, pre-show check, phone pause reasons",
+      "date": "2026-10-26",
+      "summary": "One session: answered a terminal-glitch question (made fixterm + /fix-terminal), suggested improvements, then built the user's picks 1-3 on the iPhone and PC and built the new IPA.",
+      "stages": [
+        {
+          "name": "Solo session",
+          "kind": "solo",
+          "sessions": [
+            {
+              "id": "d8f52793",
+              "role": "Solo session",
+              "start": "2026-10-26T15:37",
+              "end": "2026-10-26T17:00",
+              "did": "zoom_glide_s (iPhone ramp + Zoom speed), STATE interrupted + red status line, precheck.py + check window + check when OBS goes live; 295 tests; GitHub build 40406780074",
+              "outcome": "done",
+              "files": 17
+            }
+          ]
+        }
+      ],
+      "lessons": [
+        "Commit messages from PowerShell: write them to a file and use git commit -F <file> (piping a here-string to -F - failed)."
+      ]
     }
   ]
 }
