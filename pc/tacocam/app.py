@@ -781,9 +781,9 @@ class App:
         self.clip_label = ttk.Label(p, text="", style="Muted.TLabel", wraplength=490, justify="left")
         self.clip_label.pack(anchor="w")
         self._head(p, "Card scanner feed")
-        ttk.Label(p, text="The Whatnot card scanner can read the phone's full-quality picture straight from Taco Cam "
-                          "(no OBS, no JPEG squeeze; 4K if the phone sends 4K) while OBS still gets the normal output. "
-                          "It uses the Clip turn above to stand the picture upright.",
+        ttk.Label(p, text="The Whatnot card scanner can read the phone's picture straight from Taco Cam (no OBS, no "
+                          "JPEG squeeze) while OBS still gets the normal output. Keep the phone at 1080p: that is what "
+                          "the scanner is tuned for. It uses the turn above to stand the picture upright.",
                   style="Muted.TLabel", wraplength=490, justify="left").pack(anchor="w")
         self.feed_label = ttk.Label(p, text="", style="Muted.TLabel")
         self.feed_label.pack(anchor="w")

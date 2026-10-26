@@ -114,7 +114,7 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 |---|---|
 | Clip length / Save clip now | **Ctrl+Alt+0** or the **Save last 30 s** button saves the last 15/30/60 s of the camera as an MP4 in `Videos\Taco Cam clips` (full phone quality, no re-encoding, upright). |
 | Clip / scanner turn | Which way clips and the scanner feed are turned upright. Auto follows how the phone is held. |
-| Card scanner feed | The Whatnot card scanner can read Taco Cam's full-quality picture directly (pick **Taco Cam (direct, full quality)** in the scanner). With the phone at 4K it gets 4x the detail while OBS keeps 1080p. |
+| Card scanner feed | The Whatnot card scanner can read Taco Cam's picture directly, without OBS and without JPEG (pick **Taco Cam (direct, full quality)** in the scanner). 1080p is what the scanner wants; it shrinks a 4K picture to 1080p. |
 | Open Taco Cam when I log in | Starts Taco Cam minimized with Windows. |
 
 The bottom bar's phone battery text turns orange (not charging, under 30%) or red (under 15%), and says when
