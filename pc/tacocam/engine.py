@@ -10,6 +10,7 @@ no picture).
 """
 import collections
 import copy
+import os
 import threading
 import time
 from pathlib import Path
@@ -21,6 +22,7 @@ from .decoder import Decoder
 from .link import Link, split_host
 from . import vcam as vcam_mod
 from .clips import ClipBuffer, clip_name, clips_folder, write_mp4
+from .framefeed import FEED_NAME, FeedWriter
 
 DEFAULT_SETTINGS = {
     "phone": {
@@ -112,6 +114,10 @@ class Engine:
         self._error = None
         self._fps_in = RateMeter()
         self._clips = ClipBuffer()
+        self.feed_name = os.environ.get("TACOCAM_FEED_NAME") or FEED_NAME  # tests use their own
+        self._feed = None
+        self._feed_thread = None
+        self.feed_frames = 0
         self._fps_out = RateMeter()
         self._bytes_in = RateMeter()
 
@@ -146,6 +152,8 @@ class Engine:
             self._vcam_reopen = True
             self._out_thread = threading.Thread(target=self._output_loop, name="tacocam-output", daemon=True)
             self._out_thread.start()
+            self._feed_thread = threading.Thread(target=self._feed_loop, name="tacocam-feed", daemon=True)
+            self._feed_thread.start()
         self._log("Taco Cam engine started")
 
     def stop(self):
@@ -153,9 +161,9 @@ class Engine:
             if not self._running:
                 return
             self._running = False
-            link, dec, out_thread = self._link, self._decoder, self._out_thread
+            link, dec, out_thread, feed_thread = self._link, self._decoder, self._out_thread, self._feed_thread
         deadline = time.monotonic() + 1.8
-        threads = [out_thread, link._thread, dec._thread if dec else None]
+        threads = [out_thread, feed_thread, link._thread, dec._thread if dec else None]
         # Wake every thread and close the socket first, then wait for them all against one deadline.
         self._stop.set()
         self._wake.set()
@@ -170,8 +178,11 @@ class Engine:
             dec._thread = None
         with self._lock:
             cam, self._vcam = self._vcam, None
+            feed, self._feed = self._feed, None
         if cam is not None:
             cam.close()
+        if feed is not None:
+            feed.close()
         with self._lock:
             self._vcam_status = "stopped"
             self._phone_state = None
@@ -319,6 +330,40 @@ class Engine:
 
     def _on_phone_log(self, text):
         self._log(f"iPhone: {text}")
+
+    # -- scanner feed (framefeed.py) -------------------------------------------------------------
+    def feed_turn(self):
+        """Clockwise turn that makes the picture upright, for clips and the scanner feed (pc.clip_rotate)."""
+        with self._lock:
+            r = self._settings["pc"].get("clip_rotate", "auto")
+            if r == "auto":
+                r = (self._phone_state or {}).get("rotation_hint", 0)
+        return int(r) % 360 if isinstance(r, int) and int(r) % 90 == 0 else 0
+
+    def feed_in_use(self):
+        feed = self._feed
+        return feed is not None and feed.wanted()
+
+    def _feed_loop(self):
+        try:
+            feed = FeedWriter(self.feed_name)
+        except Exception as e:  # shared memory refused: clips and OBS still work
+            self._log(f"Scanner feed unavailable: {e}")
+            return
+        with self._lock:
+            self._feed = feed
+        last = None
+        while not self._stop.is_set():
+            if not feed.wanted():
+                self._stop.wait(0.2)
+                continue
+            dec = self._decoder
+            item = dec.wait_new(last, 0.5) if dec is not None else None
+            if item is None or item[0] == last or self._stop.is_set():
+                continue
+            last = item[0]
+            if feed.write(item[1], self.feed_turn()):
+                self.feed_frames += 1
 
     # -- output loop -----------------------------------------------------------------------------
     def _make_transform(self, frame_shape):

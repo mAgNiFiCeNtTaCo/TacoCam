@@ -208,7 +208,24 @@ the custom name "Taco Cam"; installed once by the user with an admin script
 which conflicts with OBS's own Start Virtual Camera button, so the app says so.
 Output frames: RGB at `pc.output` size and `pc.fps_out`.
 
-## 8. Definition of done
+## 8. Scanner feed (added 2026-10-25)
+
+Taco Cam publishes its newest decoded phone picture (full stream size, up to 3840x2160) in a named
+shared memory block **"TacoCamFeed2"** for other programs on this PC (the Whatnot card scanner,
+`scanner/tacocam_feed.py` there). Little-endian layout:
+
+| Offset | Field |
+|---|---|
+| 0 | magic `"TCF2"` (4 bytes), 4: version u32 = 2 |
+| 8 | want f64: `time.time()` until which a reader wants pictures. The READER writes it (~2 s ahead); Taco Cam copies pictures only while it is in the future |
+| 16 | latest u32: slot (0/1) with the newest complete picture |
+| 64 + 32*i | slot i header: seq u64 (odd while written), width u32, height u32, format u32 (2 = BGR24, already turned upright with `pc.clip_rotate`), pad u32, time f64 (decoded at) |
+| 128 + i * 3840*2160*3 | slot i pixels, rows packed |
+
+Taco Cam writes the slot readers are not on, then flips `latest`. Readers copy the newest slot and check its
+seq did not change. Pictures older than ~2 s are stale (phone gone).
+
+## 9. Definition of done
 
 - iPhone: GitHub Actions builds `TacoCam.ipa` (unsigned, for Sideloadly) green; `dist/TacoCam.ipa`
   downloaded; code implements sections 1-5 exactly; `docs/INSTALL_IPHONE.md` explains Sideloadly

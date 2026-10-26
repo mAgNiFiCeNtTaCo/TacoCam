@@ -748,6 +748,7 @@ class App:
             self.clip_label.configure(text=text)
         secs = self.settings["pc"].get("clip_seconds", 30)
         self.clip_btn.configure(text=f"Save last {secs} s")
+        self._show_feed_status()
         snap = None
         if self.obs is not None:
             snap = self.obs.snapshot()
@@ -770,7 +771,7 @@ class App:
                   style="Muted.TLabel", wraplength=490, justify="left").pack(anchor="w")
         self._add(p, "pc.clip_seconds", Choice(p, "Clip length", [(15, "15 s"), (30, "30 s"), (60, "60 s")],
                   hint="How far back a clip reaches."))
-        self._add(p, "pc.clip_rotate", Choice(p, "Clip turn", [("auto", "Auto"), (0, "0"), (90, "90"), (180, "180"),
+        self._add(p, "pc.clip_rotate", Choice(p, "Clip / scanner turn", [("auto", "Auto"), (0, "0"), (90, "90"), (180, "180"),
                                                               (270, "270")],
                   hint="Auto = upright for how the phone is held. Or pick the clockwise turn in degrees."))
         row = ttk.Frame(p)
@@ -779,6 +780,13 @@ class App:
         ttk.Button(row, text="Open clips folder", command=self.open_clips_folder).pack(side="left", padx=(6, 0))
         self.clip_label = ttk.Label(p, text="", style="Muted.TLabel", wraplength=490, justify="left")
         self.clip_label.pack(anchor="w")
+        self._head(p, "Card scanner feed")
+        ttk.Label(p, text="The Whatnot card scanner can read the phone's full-quality picture straight from Taco Cam "
+                          "(no OBS, no JPEG squeeze; 4K if the phone sends 4K) while OBS still gets the normal output. "
+                          "It uses the Clip turn above to stand the picture upright.",
+                  style="Muted.TLabel", wraplength=490, justify="left").pack(anchor="w")
+        self.feed_label = ttk.Label(p, text="", style="Muted.TLabel")
+        self.feed_label.pack(anchor="w")
         self._head(p, "Start automatically")
         try:
             self.autostart_var.set(shortcuts.startup_shortcut().exists())
@@ -798,6 +806,11 @@ class App:
         if r == "auto":
             r = ((self._status or {}).get("phone") or {}).get("rotation_hint", 0)
         return int(r) % 360 if isinstance(r, int) and int(r) % 90 == 0 else 0
+
+    def _show_feed_status(self):
+        in_use = getattr(self.engine, "feed_in_use", lambda: False)()
+        self.feed_label.configure(text="The card scanner is reading the full-quality picture right now" if in_use
+                                  else "Not in use (in the scanner, pick \"Taco Cam (direct)\" as the camera)")
 
     def save_clip(self):
         save = getattr(self.engine, "save_clip", None)

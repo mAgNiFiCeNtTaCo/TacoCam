@@ -109,6 +109,17 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 | Output fps | Frame rate OBS sees. Match OBS. |
 | When no phone | What OBS shows if the phone is unplugged: a "waiting" card, the last picture, or black. |
 
+### Extras tab
+| Control | What it does |
+|---|---|
+| Clip length / Save clip now | **Ctrl+Alt+0** or the **Save last 30 s** button saves the last 15/30/60 s of the camera as an MP4 in `Videos\Taco Cam clips` (full phone quality, no re-encoding, upright). |
+| Clip / scanner turn | Which way clips and the scanner feed are turned upright. Auto follows how the phone is held. |
+| Card scanner feed | The Whatnot card scanner can read Taco Cam's full-quality picture directly (pick **Taco Cam (direct, full quality)** in the scanner). With the phone at 4K it gets 4x the detail while OBS keeps 1080p. |
+| Open Taco Cam when I log in | Starts Taco Cam minimized with Windows. |
+
+The bottom bar's phone battery text turns orange (not charging, under 30%) or red (under 15%), and says when
+the charger is unplugged.
+
 ### Bottom bar: the iPhone app's 7-day limit
 With a free Apple ID the iPhone app stops opening 7 days after you install it. The bottom bar shows
 "iPhone app good until ..." and turns orange two days before (red on the last day). Reinstall it with

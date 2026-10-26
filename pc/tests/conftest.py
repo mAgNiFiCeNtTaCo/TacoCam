@@ -1,4 +1,5 @@
 import gc
+import os
 import sys
 import time
 import tkinter as tk
@@ -10,6 +11,9 @@ PC = Path(__file__).resolve().parents[1]
 for p in (str(PC), str(PC / "tests")):
     if p not in sys.path:
         sys.path.insert(0, p)
+
+# Engines started by tests get their own scanner-feed memory, never the running Taco Cam's.
+os.environ["TACOCAM_FEED_NAME"] = f"TacoCamFeedTest{os.getpid()}"
 
 
 def pump(root, seconds=0.0, until=None, step=0.02):
