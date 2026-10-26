@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webcam workflow</title><style>
+:root { --bg:#f5f6f8; --card:#fff; --text:#1c1e22; --muted:#666c75; --line:#e2e4e8; --soft:#eef0f3;
+  --lead:#5865f2; --build:#1f8a5b; --review:#8e44ad; --judge:#c0392b; --fix:#d4880f; --solo:#2a7ab0;
+  --other:#7f8c8d; --event:rgba(217,164,0,.16); }
+@media (prefers-color-scheme: dark) { :root { --bg:#141518; --card:#1e2024; --text:#e7e8eb; --muted:#9aa0a8;
+  --line:#30333a; --soft:#26282d; --lead:#7b86ff; --build:#3cbf86; --review:#b57ad0; --judge:#e5675a;
+  --fix:#f0a53a; --solo:#55a7dd; --event:rgba(240,180,40,.14); } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 "Segoe UI", system-ui, sans-serif; }
+.wrap { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+h1 { margin:0; font-size:26px; } h2 { margin:0 0 2px; font-size:20px; } h3 { margin:18px 0 8px; font-size:15px; color:var(--muted); font-weight:600; }
+.muted { color:var(--muted); } .small { font-size:13px; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 4px; }
+.chip { background:var(--card); border:1px solid var(--line); border-radius:999px; padding:3px 12px; font-size:13px; }
+.legend { display:flex; flex-wrap:wrap; gap:14px; margin:10px 0 0; font-size:13px; color:var(--muted); }
+.sw { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+.toc { margin:18px 0 6px; display:flex; flex-direction:column; gap:4px; }
+.toc a { color:var(--text); text-decoration:none; } .toc a:hover { text-decoration:underline; }
+.run { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 18px 20px; margin-top:22px; overflow:hidden; }
+h1, h2 { overflow-wrap:anywhere; }
+.stage { position:relative; }
+.stage-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.pill { color:#fff; border-radius:999px; padding:1px 10px; font-size:12px; font-weight:600; }
+.boxes { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px; }
+.box { border:1px solid var(--line); border-left:4px solid var(--k); border-radius:10px; padding:8px 10px;
+  background:var(--card); min-width:0; }
+.box.superseded { opacity:.6; } .box.problem { border-color:var(--judge); border-left-color:var(--judge); }
+.box .top { display:flex; justify-content:space-between; gap:8px; font-size:12px; color:var(--muted); }
+.box .role { font-weight:600; margin:2px 0; }
+.box .did { font-size:13px; color:var(--muted); display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden; }
+.id { font-family:Consolas, monospace; }
+.badge { font-weight:700; }
+.arrow { text-align:center; color:var(--muted); font-size:22px; line-height:1; margin:6px 0; }
+.gantt { position:relative; margin-top:6px; }
+.axis { position:relative; height:20px; margin-left:var(--lbl); font-size:11px; color:var(--muted); border-bottom:1px solid var(--line); }
+.tick { position:absolute; transform:translateX(-50%); white-space:nowrap; }
+.row { display:flex; align-items:center; height:24px; }
+.row .lbl { width:var(--lbl); flex:none; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:8px; }
+.track { position:relative; flex:1; height:100%; border-bottom:1px dashed var(--soft); }
+.bar { position:absolute; top:5px; height:14px; border-radius:4px; background:var(--k); min-width:3px; }
+.bar.superseded { opacity:.45; }
+.band { position:absolute; top:0; bottom:0; background:var(--event); border-left:1px dashed var(--fix); border-right:1px dashed var(--fix); }
+.band-wrap { position:absolute; top:20px; bottom:0; left:var(--lbl); right:0; pointer-events:none; }
+.events { margin:8px 0 0; padding-left:18px; font-size:13px; color:var(--muted); }
+ul.lessons { margin:4px 0 0; padding-left:20px; } ul.lessons li { margin:3px 0; }
+footer { margin-top:28px; font-size:12px; color:var(--muted); }
+@media (max-width:600px) { .wrap { padding:16px 12px 40px; } .run { padding:14px 12px; } :root { --lbl:110px !important; } }
+</style></head>
+<body><div class="wrap">
+<h1>Webcam: how it was built</h1>
+<div class="muted">Taco Cam: own iPhone-as-USB-webcam app (Iriun-like, plus 0.5x) feeding OBS as the &quot;Taco Cam&quot; camera</div>
+<div class="chips"><span class="chip">1 run</span><span class="chip">5 sessions</span><span class="chip">2026-10-25</span></div>
+<div class="legend"><span><span class="sw" style="background:var(--lead)"></span>Lead</span><span><span class="sw" style="background:var(--build)"></span>Builders</span><span><span class="sw" style="background:var(--review)"></span>Reviewers</span><span><span class="sw" style="background:var(--judge)"></span>Judges</span><span><span class="sw" style="background:var(--fix)"></span>Fixes</span><span><span class="sw" style="background:var(--solo)"></span>Session</span><span><span class="sw" style="background:var(--other)"></span>Other</span><span><b>✓</b> Done</span><span><b>↺</b> Replaced by a later round</span><span><b>!</b> Had a problem</span><span><b>…</b> Still running</span></div>
+<nav class="toc"><a href="#run0"><b>2026-10-25</b> · Team build, first iPhone build, first real-phone run <span class="muted small">(5 sessions)</span></a></nav>
+<section class="run" id="run0"><h2>2026-10-25: Team build, first iPhone build, first real-phone run</h2><div class="muted small">15:21–20:22 · 5h 01m · 5 sessions</div><p>A nodeterm team built the iPhone app, PC engine and window; a follow-up session unblocked the push, did the checker review, built and installed the app and ran it on the real phone.</p><h3>Who fed whom</h3><div class="stage"><div class="stage-head"><span class="pill" style="background:var(--lead)">Orchestrator</span><span class="muted small">1 session</span></div><div class="boxes"><div class="box done" style="--k:var(--lead)" title="Settled choices with the user, wrote CONTRACT.md and the station briefs"><div class="top"><span class="id">61f2a5e9</span><span>15:21–17:36 · 8 files <span class="badge" title="Done">✓</span></span></div><div class="role">Orchestrator</div><div class="did">Settled choices with the user, wrote CONTRACT.md and the station briefs</div></div></div></div><div class="arrow">↓</div><div class="stage"><div class="stage-head"><span class="pill" style="background:var(--build)">Stations</span><span class="muted small">3 sessions</span><span class="muted small">shared working tree, no worktrees</span></div><div class="boxes"><div class="box problem" style="--k:var(--build)" title="Swift app, XcodeGen project, CI workflow, install guide; push refused (gh token lacked workflow scope)"><div class="top"><span class="id">4ee308cf</span><span>17:24–18:39 · 20 files <span class="badge" title="Had a problem">!</span></span></div><div class="role">iPhone station</div><div class="did">Swift app, XcodeGen project, CI workflow, install guide; push refused (gh token lacked workflow scope)</div></div><div class="box done" style="--k:var(--build)" title="Protocol, USB link, decoder, pipeline, virtual camera, fake phone; 185 tests; vcam verified bit-exact"><div class="top"><span class="id">e0b71d0e</span><span>17:24–19:08 · 28 files <span class="badge" title="Done">✓</span></span></div><div class="role">PC engine station</div><div class="did">Protocol, USB link, decoder, pipeline, virtual camera, fake phone; 185 tests; vcam verified bit-exact</div></div><div class="box done" style="--k:var(--build)" title="tkinter control window, settings, README, launchers; 60 app tests"><div class="top"><span class="id">49cc3c6e</span><span>17:24–18:13 · 17 files <span class="badge" title="Done">✓</span></span></div><div class="role">PC app station</div><div class="did">tkinter control window, settings, README, launchers; 60 app tests</div></div></div></div><div class="arrow">↓</div><div class="stage"><div class="stage-head"><span class="pill" style="background:var(--fix)">Checker + real phone</span><span class="muted small">1 session</span><span class="muted small">the Checker station never started; this session did its job</span></div><div class="boxes"><div class="box done" style="--k:var(--fix)" title="Swift review, 4 iOS fixes, first green build, IPA via iloader, real iPhone 11 working, 4K benchmark, Whatnot settings"><div class="top"><span class="id">24137721</span><span>18:44–20:22 · 10 files <span class="badge" title="Done">✓</span></span></div><div class="role">Follow-up session</div><div class="did">Swift review, 4 iOS fixes, first green build, IPA via iloader, real iPhone 11 working, 4K benchmark, Whatnot settings</div></div></div></div><h3>Timeline</h3><div class="gantt" style="--lbl:220px"><div class="axis"><span class="tick" style="left:12.96%">16:00</span><span class="tick" style="left:32.89%">17:00</span><span class="tick" style="left:52.82%">18:00</span><span class="tick" style="left:72.76%">19:00</span><span class="tick" style="left:92.69%">20:00</span></div><div class="band-wrap"><div class="band" style="left:65.78%;width:6.98%" title="Waiting for the user to grant the GitHub workflow permission"></div></div><div class="row"><div class="lbl" title="61f2a5e9 · Orchestrator · 15:21–17:36 (2h 15m)"><span class="id">61f2a5e9</span> Orchestrator</div><div class="track"><div class="bar done" style="--k:var(--lead);left:0.00%;width:44.85%" title="61f2a5e9 · Orchestrator · 15:21–17:36 (2h 15m)"></div></div></div><div class="row"><div class="lbl" title="4ee308cf · iPhone station · 17:24–18:39 (1h 15m)"><span class="id">4ee308cf</span> iPhone station</div><div class="track"><div class="bar problem" style="--k:var(--build);left:40.86%;width:24.92%" title="4ee308cf · iPhone station · 17:24–18:39 (1h 15m)"></div></div></div><div class="row"><div class="lbl" title="e0b71d0e · PC engine station · 17:24–19:08 (1h 44m)"><span class="id">e0b71d0e</span> PC engine station</div><div class="track"><div class="bar done" style="--k:var(--build);left:40.86%;width:34.55%" title="e0b71d0e · PC engine station · 17:24–19:08 (1h 44m)"></div></div></div><div class="row"><div class="lbl" title="49cc3c6e · PC app station · 17:24–18:13 (49 min)"><span class="id">49cc3c6e</span> PC app station</div><div class="track"><div class="bar done" style="--k:var(--build);left:40.86%;width:16.28%" title="49cc3c6e · PC app station · 17:24–18:13 (49 min)"></div></div></div><div class="row"><div class="lbl" title="24137721 · Follow-up session · 18:44–20:22 (1h 38m)"><span class="id">24137721</span> Follow-up session</div><div class="track"><div class="bar done" style="--k:var(--fix);left:67.44%;width:32.56%" title="24137721 · Follow-up session · 18:44–20:22 (1h 38m)"></div></div></div></div><ul class="events"><li>18:39–19:00: Waiting for the user to grant the GitHub workflow permission</li></ul><h3>What went wrong, what worked</h3><ul class="lessons"><li>Check gh auth status for the workflow scope before a team run that must push a workflow file</li><li>Sideloadly login broken by Apple since 2026-10-21 (-80046); iloader works</li><li>OBS stream settings came from Whatnot&#x27;s own tool: check where settings came from before suggesting changes</li></ul></section>
+<footer>Drawn by _brain/workflow.py from workflow.json on 2026-10-25 20:23. Hover a box or bar for
+details. Full transcripts: ~/.claude/projects/&lt;project folder&gt;/&lt;session id&gt;*.jsonl</footer>
+</div></body></html>

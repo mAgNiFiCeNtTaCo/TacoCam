@@ -1,0 +1,37 @@
+{
+  "project": "Webcam",
+  "about": "Taco Cam: own iPhone-as-USB-webcam app (Iriun-like, plus 0.5x) feeding OBS as the \"Taco Cam\" camera",
+  "runs": [
+    {
+      "title": "Team build, first iPhone build, first real-phone run",
+      "date": "2026-10-25",
+      "summary": "A nodeterm team built the iPhone app, PC engine and window; a follow-up session unblocked the push, did the checker review, built and installed the app and ran it on the real phone.",
+      "stages": [
+        {"name": "Orchestrator", "kind": "lead",
+         "sessions": [
+           {"id": "61f2a5e9", "role": "Orchestrator", "start": "2026-10-25T15:21", "end": "2026-10-25T17:36",
+            "did": "Settled choices with the user, wrote CONTRACT.md and the station briefs", "outcome": "done", "files": 8}]},
+        {"name": "Stations", "kind": "build", "note": "shared working tree, no worktrees",
+         "sessions": [
+           {"id": "4ee308cf", "role": "iPhone station", "start": "2026-10-25T17:24", "end": "2026-10-25T18:39",
+            "did": "Swift app, XcodeGen project, CI workflow, install guide; push refused (gh token lacked workflow scope)", "outcome": "problem", "files": 20},
+           {"id": "e0b71d0e", "role": "PC engine station", "start": "2026-10-25T17:24", "end": "2026-10-25T19:08",
+            "did": "Protocol, USB link, decoder, pipeline, virtual camera, fake phone; 185 tests; vcam verified bit-exact", "outcome": "done", "files": 28},
+           {"id": "49cc3c6e", "role": "PC app station", "start": "2026-10-25T17:24", "end": "2026-10-25T18:13",
+            "did": "tkinter control window, settings, README, launchers; 60 app tests", "outcome": "done", "files": 17}]},
+        {"name": "Checker + real phone", "kind": "fix", "note": "the Checker station never started; this session did its job",
+         "sessions": [
+           {"id": "24137721", "role": "Follow-up session", "start": "2026-10-25T18:44", "end": "2026-10-25T20:22",
+            "did": "Swift review, 4 iOS fixes, first green build, IPA via iloader, real iPhone 11 working, 4K benchmark, Whatnot settings", "outcome": "done", "files": 10}]}
+      ],
+      "events": [
+        {"at": "2026-10-25T18:39", "until": "2026-10-25T19:00", "text": "Waiting for the user to grant the GitHub workflow permission"}
+      ],
+      "lessons": [
+        "Check gh auth status for the workflow scope before a team run that must push a workflow file",
+        "Sideloadly login broken by Apple since 2026-10-21 (-80046); iloader works",
+        "OBS stream settings came from Whatnot's own tool: check where settings came from before suggesting changes"
+      ]
+    }
+  ]
+}
