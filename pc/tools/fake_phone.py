@@ -41,11 +41,13 @@ CAMERAS = {
              "lens_zooms": [0.5, 1.0, 3.0], "has_torch": True, "resolutions": ["720p", "1080p", "4k"],
              "fps": {"720p": [24, 25, 30, 60], "1080p": [24, 25, 30, 60], "4k": [24, 25, 30, 60]},
              "iso_range": [32, 3072], "shutter_range_s": [0.00002, 0.5], "focus_manual": True, "hdr": True,
+             "focus_lock": True, "exposure_manual": True, "wb_manual": True, "anti_flicker": True,
              "stabilization": ["off", "standard", "cinematic"]},
     "front": {"available": True, "name": "Front TrueDepth Camera", "min_zoom": 1.0, "max_zoom": 5.0,
               "lens_zooms": [1.0], "has_torch": False, "resolutions": ["720p", "1080p", "4k"],
               "fps": {"720p": [24, 25, 30, 60], "1080p": [24, 25, 30, 60], "4k": [24, 25, 30]},
               "iso_range": [23, 2208], "shutter_range_s": [0.000014, 0.33], "focus_manual": False, "hdr": True,
+              "focus_lock": True, "exposure_manual": True, "wb_manual": True, "anti_flicker": True,
               "stabilization": ["off", "standard"]},
 }
 

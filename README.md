@@ -79,7 +79,7 @@ always shows the value the phone really uses (it may adjust what you ask for).
 |---|---|
 | Focus | Auto, or Manual with a distance slider. |
 | Exposure | Auto with a brightness (EV) slider, or Manual with ISO and shutter. |
-| Anti-flicker | **60 Hz (US)** stops LED / fluorescent room lights from banding or flickering on the picture (great on foil). The shutter follows the lights, brightness stays automatic. Auto exposure only. |
+| Anti-flicker | **60 Hz (US)** stops LED / fluorescent room lights from banding or flickering on the picture (great on foil). The shutter follows the lights, brightness stays automatic. Auto exposure only. Not available on the back camera's combined 0.5x-1x lenses (Apple doesn't allow a fixed shutter there): greyed out then. |
 | White balance | Auto, or Manual with temperature (cool to warm) and tint. |
 | Torch | The phone's flashlight (back camera). |
 | Stabilization | Off / Standard / Cinematic. Adds a little delay. Off is best on a tripod. |
@@ -93,7 +93,7 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 
 | Control | What it does |
 |---|---|
-| Save new... | Saves what the camera does now. The **lock** boxes turn auto focus / exposure / colors into fixed values at what the camera uses right now, so the focus doesn't hunt when your hands move and foil doesn't change the brightness. |
+| Save new... | Saves what the camera does now (on the back camera a lock means *hold*: focus once on the middle of the picture and stay there, freeze brightness / colors). The **lock** boxes turn auto focus / exposure / colors into fixed values at what the camera uses right now, so the focus doesn't hunt when your hands move and foil doesn't change the brightness. |
 | Apply / double-click | Uses that preset. The buttons under the preview do the same (the lit one is in use; it goes dark when you change a camera setting by hand). |
 | Update / Rename / Delete | Change the selected preset. Up to 9 presets. |
 | Hotkeys | **Ctrl+Alt+1..9** apply presets 1..9 from any program, also while OBS is in front. |

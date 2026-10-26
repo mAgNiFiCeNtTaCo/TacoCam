@@ -247,3 +247,31 @@ def test_anti_flicker_only_in_auto_exposure(tk_root, tmp_path):
         assert not app.ctl["phone.anti_flicker"].enabled
     finally:
         app.close()
+
+
+def test_combined_back_camera_greys_out_exact_values(tk_root, tmp_path):
+    """iPhone 11 back camera (Dual Wide): only holding focus/brightness/colors, no anti-flicker."""
+    app, eng, _ = _app(tk_root, tmp_path)
+    try:
+        eng.connect_phone()
+        with eng.lock:
+            back = eng.status["phone"]["cameras"]["back"]
+            back.update(focus_manual=False, focus_lock=True, exposure_manual=False, wb_manual=False,
+                        anti_flicker=False)
+            s = eng.status["phone"]["settings"]
+            s["exposure"]["mode"] = "manual"
+            s["white_balance"]["mode"] = "manual"
+            s["focus"]["mode"] = "manual"
+        app.refresh_from_status(force=True)
+        c = app.ctl
+        assert "manual" in {v for v, _ in c["phone.focus.mode"].options}
+        assert not c["phone.focus.position"].enabled and "hold" in c["phone.focus.position"]._reason
+        assert not c["phone.exposure.iso"].enabled and "hold its brightness" in c["phone.exposure.iso"]._reason
+        assert not c["phone.white_balance.temperature"].enabled
+        with eng.lock:
+            eng.status["phone"]["settings"]["exposure"]["mode"] = "auto"
+        app.refresh_from_status(force=True)
+        assert not c["phone.anti_flicker"].enabled and "Apple" in c["phone.anti_flicker"]._reason
+        assert c["phone.exposure.bias"].enabled
+    finally:
+        app.close()

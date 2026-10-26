@@ -412,7 +412,7 @@ class App:
         self._add(p, "phone.focus.mode", Choice(p, "Focus", [("auto", "Auto"), ("manual", "Manual")],
                   hint="Auto keeps things sharp. Tip: click the preview to focus on a spot."))
         self._add(p, "phone.focus.position", Slider(p, "Focus distance", 0, 1, step=0.01,
-                  fmt=lambda v: f"{v:.2f}", hint="Manual focus: 0 = far away, 1 = very close."))
+                  fmt=lambda v: f"{v:.2f}", hint="Manual focus: 0 = closest the lens can focus, 1 = far away."))
         self._head(p, "Exposure (brightness)")
         self._add(p, "phone.exposure.mode", Choice(p, "Exposure", [("auto", "Auto"), ("manual", "Manual")],
                   hint="Auto adjusts brightness for you. Manual lets you set ISO and shutter."))
@@ -848,15 +848,25 @@ class App:
         if lenses != self._zoom_lenses:
             self._rebuild_zoom_buttons(lenses)
         # focus
+        # The back camera's combined 0.5x-1x mode can't take exact values; it can only hold focus /
+        # brightness / colors where they are ("Manual" then means hold). Older phone apps don't say: assume yes.
         manual_focus = bool(get("focus_manual", True))
-        c["phone.focus.mode"].set_allowed(None if manual_focus else {"auto"})
+        focus_lock = bool(get("focus_lock", manual_focus))
+        c["phone.focus.mode"].set_allowed(None if (manual_focus or focus_lock) else {"auto"})
         self._gate("phone.focus.position", manual_focus and ps["focus"]["mode"] == "manual",
-                   "This camera can't focus manually" if not manual_focus else "Switch Focus to Manual first")
+                   ("This camera can only hold its focus: Manual = focus once on the middle, then hold"
+                    if focus_lock else "This camera can't focus manually")
+                   if not manual_focus else "Switch Focus to Manual first")
         # exposure
+        exposure_manual = bool(get("exposure_manual", True))
         self._gate("phone.exposure.bias", ps["exposure"]["mode"] == "auto", "Only in Auto exposure")
-        self._gate("phone.anti_flicker", ps["exposure"]["mode"] == "auto", "Only in Auto exposure")
+        self._gate("phone.anti_flicker", ps["exposure"]["mode"] == "auto" and bool(get("anti_flicker", True)),
+                   "Only in Auto exposure" if ps["exposure"]["mode"] != "auto"
+                   else "Not possible with the back camera's combined 0.5x-1x lenses (Apple doesn't allow it)")
         for k in ("phone.exposure.iso", "phone.exposure.shutter_s"):
-            self._gate(k, ps["exposure"]["mode"] == "manual", "Only in Manual exposure")
+            self._gate(k, ps["exposure"]["mode"] == "manual" and exposure_manual,
+                       "Only in Manual exposure" if exposure_manual
+                       else "This camera can only hold its brightness: Manual = freeze it where it is")
         iso = get("iso_range", None)
         if iso and iso[1] > iso[0]:
             c["phone.exposure.iso"].set_range(float(iso[0]), float(iso[1]))
@@ -864,8 +874,11 @@ class App:
         if sh and sh[1] > sh[0] > 0:
             c["phone.exposure.shutter_s"].set_range(float(sh[0]), float(sh[1]))
         # white balance
+        wb_manual = bool(get("wb_manual", True))
         for k in ("phone.white_balance.temperature", "phone.white_balance.tint"):
-            self._gate(k, ps["white_balance"]["mode"] == "manual", "Only in Manual white balance")
+            self._gate(k, ps["white_balance"]["mode"] == "manual" and wb_manual,
+                       "Only in Manual white balance" if wb_manual
+                       else "This camera can only hold its colors: Manual = freeze them where they are")
         # torch, hdr
         has_torch = bool(get("has_torch", ps["camera"] == "back"))
         self._gate("phone.torch", has_torch,

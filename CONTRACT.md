@@ -126,7 +126,12 @@ The lens switch-over itself is automatic (virtual device). Front camera: min dis
               "lens_zooms": [0.5, 1.0, 3.0], "has_torch": true,
               "resolutions": ["720p","1080p","4k"], "fps": {"720p":[24,25,30,60],"1080p":[24,25,30,60],"4k":[24,25,30,60]},
               "iso_range": [32, 3072], "shutter_range_s": [0.00002, 0.5], "focus_manual": true, "hdr": true,
-              "stabilization": ["off","standard","cinematic"]},
+              "stabilization": ["off","standard","cinematic"],
+              "focus_lock": true, "exposure_manual": false, "wb_manual": false, "anti_flicker": false},
+              // (flags added 2026-10-25) The combined back camera (Dual Wide / Triple virtual device) refuses a lens
+              // position, custom ISO/shutter and custom white-balance gains. There a "manual" focus / exposure /
+              // white_balance in SET means HOLD: focus once on the middle of the picture then lock, freeze exposure,
+              // freeze colors; STATE then reports the values in use. anti_flicker needs exposure_manual.
     "front": { ...same keys... }
   },
   "rotation_hint": 90,
