@@ -19,7 +19,7 @@ You need an iPhone 11 or newer (older phones have no 0.5x lens).
 2. **The virtual camera.** Double-click `pc\vcam\Install Taco Cam camera.bat` and say **Yes** to the Windows
    question. Then restart OBS. (The app also has an **Install virtual camera** button in the bottom bar that
    does the same, if the camera is missing.)
-3. **The iPhone app.** Follow `docs/INSTALL_IPHONE.md` (it explains Sideloadly step by step).
+3. **The iPhone app.** Follow `docs/INSTALL_IPHONE.md` (it explains iloader step by step).
 4. Install **iTunes or Apple Devices** from the Microsoft Store if you haven't: Windows needs Apple's USB
    driver to talk to the iPhone.
 
@@ -79,11 +79,25 @@ always shows the value the phone really uses (it may adjust what you ask for).
 |---|---|
 | Focus | Auto, or Manual with a distance slider. |
 | Exposure | Auto with a brightness (EV) slider, or Manual with ISO and shutter. |
+| Anti-flicker | **60 Hz (US)** stops LED / fluorescent room lights from banding or flickering on the picture (great on foil). The shutter follows the lights, brightness stays automatic. Auto exposure only. |
 | White balance | Auto, or Manual with temperature (cool to warm) and tint. |
 | Torch | The phone's flashlight (back camera). |
 | Stabilization | Off / Standard / Cinematic. Adds a little delay. Off is best on a tripod. |
 | HDR video | Better bright areas, where supported. |
-| Reset image settings | Puts focus, exposure, white balance, torch, stabilization and HDR back to normal. |
+| Reset image settings | Puts focus, exposure, anti-flicker, white balance, torch, stabilization and HDR back to normal. |
+
+### Presets tab
+Save the picture settings you switch between during a show (zoom, focus, exposure, colors, light,
+anti-flicker), for example **Wide table** (0.5x) and **Card close-up** (zoomed in, focus locked).
+Resolution, fps and bitrate are not part of a preset (changing those restarts the video).
+
+| Control | What it does |
+|---|---|
+| Save new... | Saves what the camera does now. The **lock** boxes turn auto focus / exposure / colors into fixed values at what the camera uses right now, so the focus doesn't hunt when your hands move and foil doesn't change the brightness. |
+| Apply / double-click | Uses that preset. The buttons under the preview do the same (the lit one is in use; it goes dark when you change a camera setting by hand). |
+| Update / Rename / Delete | Change the selected preset. Up to 9 presets. |
+| Hotkeys | **Ctrl+Alt+1..9** apply presets 1..9 from any program, also while OBS is in front. |
+| Follow OBS | Applies the preset linked to the live OBS scene whenever you switch scenes. Pick a scene, then **Link to selected preset**. It only reads the scene name through OBS's websocket server (Tools > WebSocket Server Settings) and never changes OBS. |
 
 ### Output (OBS) tab
 | Control | What it does |
@@ -94,6 +108,11 @@ always shows the value the phone really uses (it may adjust what you ask for).
 | Mirror / Flip | Turn the picture left-right / upside-down. |
 | Output fps | Frame rate OBS sees. Match OBS. |
 | When no phone | What OBS shows if the phone is unplugged: a "waiting" card, the last picture, or black. |
+
+### Bottom bar: the iPhone app's 7-day limit
+With a free Apple ID the iPhone app stops opening 7 days after you install it. The bottom bar shows
+"iPhone app good until ..." and turns orange two days before (red on the last day). Reinstall it with
+iloader (`docs/INSTALL_IPHONE.md`) to get another 7 days.
 
 ### Phone tab
 | Control | What it does |
@@ -115,7 +134,7 @@ damaged, Taco Cam starts with the normal settings and keeps the broken one as `s
 - **"Searching for iPhone on USB" for a long time**: check the cable (use a data cable), unlock the phone and
   tap **Trust This Computer** when asked, and make sure iTunes / Apple Devices is installed.
 - **The app was working and now won't open on the iPhone (about 7 days later)**: apps installed with a free
-  Apple ID expire after 7 days. Plug in the phone and install the app again in Sideloadly (see
+  Apple ID expire after 7 days. Plug in the phone and install the app again with iloader (see
   `docs/INSTALL_IPHONE.md`).
 - **OBS doesn't list "Taco Cam"**: run `pc\vcam\Install Taco Cam camera.bat` (Yes to the Windows question) and
   restart OBS.

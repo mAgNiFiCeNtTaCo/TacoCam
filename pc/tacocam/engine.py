@@ -26,7 +26,7 @@ DEFAULT_SETTINGS = {
         "focus": {"mode": "auto", "position": 0.5},
         "exposure": {"mode": "auto", "bias": 0.0, "iso": None, "shutter_s": None},
         "white_balance": {"mode": "auto", "temperature": 5000, "tint": 0},
-        "torch": 0.0, "stabilization": "off", "hdr": False, "screen": "normal",
+        "torch": 0.0, "stabilization": "off", "hdr": False, "screen": "normal", "anti_flicker": "off",
     },
     "pc": {
         "connect": "usb", "wifi_host": "", "rotate": "auto", "mirror": False, "flip": False,

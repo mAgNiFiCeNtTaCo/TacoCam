@@ -7,10 +7,14 @@ import subprocess
 import sys
 import time
 import tkinter as tk
+from datetime import datetime, timezone
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import messagebox, simpledialog, ttk
 
+from . import presets as P
 from . import settings as S
+from .hotkeys import GlobalHotkeys
+from .obsfollow import ObsFollower
 from .ui_widgets import (ACCENT, BAD, BG, FG, GOOD, MUTED, WARN, Choice, Combo, Control, Slider,
                          Switch, Tooltip, apply_theme)
 
@@ -61,7 +65,28 @@ def fmt_shutter(s):
     return f"1/{max(1, round(1 / s))}"
 
 
-def describe_status(st, vcam_name="Taco Cam"):
+def describe_expiry(expires, now=None):
+    """(text, color) for when the sideloaded iPhone app stops opening (STATE app_expires, ISO 8601)."""
+    if not isinstance(expires, str):
+        return "", MUTED
+    try:
+        when = datetime.fromisoformat(expires.replace("Z", "+00:00"))
+    except ValueError:
+        return "", MUTED
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    hours = (when - now).total_seconds() / 3600
+    local = when.astimezone().strftime("%a %b %d, %I:%M %p").replace(" 0", " ")
+    if hours <= 0:
+        return "The iPhone app has expired: reinstall it with iloader (it won't open until you do)", BAD
+    if hours <= 48:
+        left = f"{max(1, round(hours))} h" if hours < 24 else "2 days"
+        return f"iPhone app stops opening in {left} ({local}): reinstall it with iloader", (BAD if hours < 12 else WARN)
+    return f"iPhone app good until {local}", MUTED
+
+
+def describe_status(st, vcam_name="Taco Cam", now=None):
     """Turns eng.get_status() into the texts for the status bar (pure function, tested)."""
     st = st or {}
     phone = st.get("phone") or {}
@@ -98,6 +123,7 @@ def describe_status(st, vcam_name="Taco Cam"):
     if phone and phone.get("app_active") is False:
         problem = "Taco Cam on the phone went to the background: open it again"
     out["phone_problem"] = problem or ""
+    out["expiry"], out["expiry_color"] = describe_expiry(phone.get("app_expires"), now)
 
     if link == "connected":
         rtt = st.get("rtt_ms")
@@ -192,6 +218,15 @@ class App:
         self._test_proc = None
         self.preview_frames = 0
         self.last_status_text = {}
+        self.hotkeys = None
+        self.obs = None
+        self._obs_scene_seen = None
+        self.preset_buttons = []
+        self._active_preset = None
+        self._expiry_logged = None
+        self.lock_focus = tk.BooleanVar(master=root, value=True)
+        self.lock_exposure = tk.BooleanVar(master=root, value=False)
+        self.lock_colors = tk.BooleanVar(master=root, value=True)
 
         self.root.title("Taco Cam")
         apply_theme(root)
@@ -214,6 +249,7 @@ class App:
     # ---- lifecycle
     def start(self):
         self.engine.start()
+        self._sync_background()
         self._preview_job = self.root.after(PREVIEW_MS, self._preview_tick)
         self._status_job = self.root.after(STATUS_MS, self._status_tick)
 
@@ -242,6 +278,12 @@ class App:
         except tk.TclError:
             pass
         self.stop_test_phone()
+        for helper in (self.hotkeys, self.obs):
+            if helper is not None:
+                try:
+                    helper.stop()
+                except Exception:
+                    self.logger.exception("stopping %s failed", helper)
         try:
             self.engine.stop()
         except Exception as e:  # keep closing no matter what
@@ -278,7 +320,9 @@ class App:
                                                     font=("Segoe UI", 14))
         self.canvas.bind("<Configure>", self._canvas_resized)
         self.hint_label = ttk.Label(left, text="", style="StatusMuted.TLabel")
-        self.hint_label.grid(row=2, column=0, sticky="w", pady=(2, 0))
+        self.hint_label.grid(row=3, column=0, sticky="w", pady=(2, 0))
+        self.preset_bar = ttk.Frame(left, style="Dark.TFrame")
+        self.preset_bar.grid(row=2, column=0, sticky="ew", pady=(6, 0))
 
         zoombar = ttk.Frame(left, style="Dark.TFrame")
         zoombar.grid(row=1, column=0, sticky="ew", pady=(8, 0))
@@ -299,6 +343,7 @@ class App:
         self.tabs.pack(fill="both", expand=True)
         self._tab_camera()
         self._tab_image()
+        self._tab_presets()
         self._tab_output()
         self._tab_phone()
         self._tab_log()
@@ -315,6 +360,8 @@ class App:
         self.thermal_label.grid(row=0, column=2, sticky="w", padx=(18, 0))
         self.stats_label = ttk.Label(bar, text="", style="StatusMuted.TLabel")
         self.stats_label.grid(row=1, column=0, columnspan=3, sticky="w")
+        self.expiry_label = ttk.Label(bar, text="", style="Status.TLabel")
+        self.expiry_label.grid(row=2, column=0, columnspan=3, sticky="w")
         vc = ttk.Frame(bar, style="Dark.TFrame")
         vc.grid(row=0, column=3, rowspan=2, sticky="e")
         self.vcam_label = ttk.Label(vc, text="", style="Status.TLabel")
@@ -371,6 +418,9 @@ class App:
                   hint="Auto adjusts brightness for you. Manual lets you set ISO and shutter."))
         self._add(p, "phone.exposure.bias", Slider(p, "Brightness (EV)", -3, 3, step=0.1,
                   fmt=lambda v: f"{v:+.1f}", hint="Makes the auto picture brighter or darker."))
+        self._add(p, "phone.anti_flicker", Choice(p, "Anti-flicker", [("off", "Off"), ("60hz", "60 Hz (US)"), ("50hz", "50 Hz")],
+                  hint="Stops LED / fluorescent lights from banding or flickering: the shutter follows the "
+                       "mains frequency (60 Hz in the US), brightness stays automatic."))
         self._add(p, "phone.exposure.iso", Slider(p, "ISO", 32, 3072, step=1, log=True, fmt=lambda v: f"{v:.0f}",
                   hint="Manual exposure: higher ISO = brighter but grainier."))
         self._add(p, "phone.exposure.shutter_s", Slider(p, "Shutter", 0.00002, 0.5, log=True, fmt=fmt_shutter,
@@ -432,6 +482,248 @@ class App:
                                 relief="flat", font=("Consolas", 9))
         self.log_text.pack(fill="both", expand=True)
 
+    def _tab_presets(self):
+        p = self._page("Presets")
+        ttk.Label(p, text="Save the picture settings you use often (zoom, focus, exposure, colors, light) and switch "
+                          "with one click, with Ctrl+Alt+1..9 (also while OBS is in front), or automatically with "
+                          "your OBS scenes. Resolution, fps and bitrate are not part of a preset.",
+                  style="Muted.TLabel", wraplength=490, justify="left").pack(anchor="w")
+        self.preset_list = tk.Listbox(p, height=9, bg="#15161a", fg=FG, selectbackground=ACCENT, relief="flat",
+                                      activestyle="none", font=("Segoe UI", 10), exportselection=False)
+        self.preset_list.pack(fill="x", pady=(8, 4))
+        self.preset_list.bind("<Double-Button-1>", lambda _e: self.apply_selected_preset())
+        for buttons in (
+                (("Apply", self.apply_selected_preset, "Use the selected preset now (or double-click it)."),
+                 ("Save new...", self.save_preset_new, "Save what the camera does now as a new preset."),
+                 ("Update", self.update_selected_preset, "Replace the selected preset with what the camera does now.")),
+                (("Rename...", self.rename_selected_preset, "Give the selected preset another name."),
+                 ("Delete", self.delete_selected_preset, "Remove the selected preset."))):
+            row = ttk.Frame(p)
+            row.pack(fill="x", pady=(0, 4))
+            for text, cmd, tip in buttons:
+                b = ttk.Button(row, text=text, command=cmd)
+                b.pack(side="left", padx=(0, 6))
+                Tooltip(b, tip)
+        self._head(p, "When saving, lock at what the camera uses right now")
+        for var, text in ((self.lock_focus, "Focus (stops focus hunting when hands move in front of the camera)"),
+                          (self.lock_exposure, "Exposure (keeps shiny foil from changing the brightness)"),
+                          (self.lock_colors, "Colors / white balance (keeps colors steady)")):
+            ttk.Checkbutton(p, text=text, variable=var).pack(anchor="w")
+        self._head(p, "OBS scenes")
+        self._add(p, "pc.follow_obs", Switch(p, "Follow OBS", "Switch presets with the live OBS scene",
+                  hint="Uses OBS's websocket server (Tools > WebSocket Server Settings) only to read which scene "
+                       "is live. Link a preset to a scene below."))
+        srow = ttk.Frame(p)
+        srow.pack(fill="x", pady=3)
+        self.scene_combo = ttk.Combobox(srow, state="readonly", width=28, values=[])
+        self.scene_combo.pack(side="left")
+        ttk.Button(srow, text="Link to selected preset", command=self.link_scene).pack(side="left", padx=(6, 0))
+        ttk.Button(srow, text="Unlink", command=lambda: self.link_scene(unlink=True)).pack(side="left", padx=(6, 0))
+        self.obs_label = ttk.Label(p, text="", style="Muted.TLabel")
+        self.obs_label.pack(anchor="w")
+        self._head(p, "Hotkeys")
+        self._add(p, "pc.hotkeys", Switch(p, "Hotkeys", "Ctrl+Alt+1..9 apply presets 1..9",
+                  hint="Work in any program, also while OBS or Whatnot is in front."))
+        self.hotkey_label = ttk.Label(p, text="", style="Muted.TLabel")
+        self.hotkey_label.pack(anchor="w")
+        self._refresh_presets()
+
+    # ---- presets
+    @property
+    def presets(self):
+        return self.settings.setdefault("presets", [])
+
+    def _selected_preset(self, quiet=False):
+        sel = self.preset_list.curselection()
+        if sel and sel[0] < len(self.presets):
+            return sel[0]
+        if not quiet:
+            self.set_hint("Pick a preset in the list first")
+        return None
+
+    def _refresh_presets(self, select=None):
+        lb = self.preset_list
+        lb.delete(0, "end")
+        for i, pr in enumerate(self.presets):
+            desc = P.describe(pr)
+            lb.insert("end", f"{i + 1}   {pr['name']}" + (f"   ({desc})" if desc else ""))
+        if select is not None and 0 <= select < len(self.presets):
+            lb.selection_set(select)
+        for b in self.preset_buttons:
+            b.destroy()
+        self.preset_buttons = []
+        if not self.presets:
+            lbl = ttk.Label(self.preset_bar, text="Presets: none yet (save some in the Presets tab)",
+                            style="StatusMuted.TLabel")
+            lbl.pack(side="left")
+            self.preset_buttons.append(lbl)
+        for i, pr in enumerate(self.presets):
+            b = ttk.Button(self.preset_bar, text=f"{i + 1}  {pr['name']}", style="Zoom.TButton",
+                           command=lambda i=i: self.apply_preset(i))
+            b.pack(side="left", padx=(0, 6))
+            Tooltip(b, f"Ctrl+Alt+{i + 1}. " + P.describe(pr))
+            self.preset_buttons.append(b)
+        if self._active_preset is not None and self._active_preset >= len(self.presets):
+            self._active_preset = None
+        self._mark_preset_buttons()
+
+    def _mark_preset_buttons(self):
+        for i, b in enumerate(self.preset_buttons):
+            if isinstance(b, ttk.Button):
+                b.configure(style="ZoomOn.TButton" if i == self._active_preset else "Zoom.TButton")
+
+    def apply_preset(self, i, why=""):
+        if not 0 <= i < len(self.presets):
+            return
+        pr = self.presets[i]
+        partial = P.to_partial(pr)
+        now = time.monotonic()
+        for path, ctl in self.ctl.items():
+            if path.startswith("phone."):
+                v = S.get_path(partial, path)
+                if v is not None:
+                    ctl.show(v)
+                    ctl.touched_at = now
+        self.apply(partial)
+        self._active_preset = i
+        self._mark_preset_buttons()
+        self.set_hint(f"Preset {i + 1}: {pr['name']}" + (f"  ({why})" if why else ""))
+        self.log(f"Preset {i + 1} \"{pr['name']}\" applied" + (f" ({why})" if why else ""))
+
+    def apply_selected_preset(self):
+        i = self._selected_preset()
+        if i is not None:
+            self.apply_preset(i)
+
+    def _capture(self):
+        live = ((self._status or {}).get("phone") or {}).get("live")
+        locks = (self.lock_focus.get(), self.lock_exposure.get(), self.lock_colors.get())
+        if any(locks) and not live:
+            self.set_hint("The phone isn't reporting its current focus/exposure (connect it, or update the "
+                          "iPhone app): saved without locking")
+        return P.capture(self.settings["phone"], live, *locks)
+
+    def save_preset_new(self):
+        if len(self.presets) >= P.MAX_PRESETS:
+            messagebox.showinfo("Taco Cam", f"You can have {P.MAX_PRESETS} presets. Delete or update one first.",
+                                parent=self.root)
+            return
+        name = simpledialog.askstring("Save preset", "Name for this preset (for example: Card close-up):",
+                                      parent=self.root, initialvalue=f"Preset {len(self.presets) + 1}")
+        if not name or not name.strip():
+            return
+        self.presets.append({"name": name.strip()[:P.NAME_MAX], "phone": self._capture(), "obs_scene": ""})
+        self._active_preset = len(self.presets) - 1
+        self._refresh_presets(select=len(self.presets) - 1)
+        self.schedule_save()
+
+    def update_selected_preset(self):
+        i = self._selected_preset()
+        if i is None:
+            return
+        self.presets[i]["phone"] = self._capture()
+        self._active_preset = i
+        self._refresh_presets(select=i)
+        self.schedule_save()
+        self.set_hint(f"Preset {i + 1} updated with the current camera settings")
+
+    def rename_selected_preset(self):
+        i = self._selected_preset()
+        if i is None:
+            return
+        name = simpledialog.askstring("Rename preset", "New name:", parent=self.root,
+                                      initialvalue=self.presets[i]["name"])
+        if name and name.strip():
+            self.presets[i]["name"] = name.strip()[:P.NAME_MAX]
+            self._refresh_presets(select=i)
+            self.schedule_save()
+
+    def delete_selected_preset(self):
+        i = self._selected_preset()
+        if i is None:
+            return
+        if not messagebox.askyesno("Taco Cam", f"Delete preset \"{self.presets[i]['name']}\"?", parent=self.root):
+            return
+        del self.presets[i]
+        if self._active_preset == i:
+            self._active_preset = None
+        elif self._active_preset is not None and self._active_preset > i:
+            self._active_preset -= 1
+        self._refresh_presets()
+        self.schedule_save()
+
+    def link_scene(self, unlink=False):
+        i = self._selected_preset()
+        if i is None:
+            return
+        scene = "" if unlink else self.scene_combo.get().strip()
+        if not unlink and not scene:
+            self.set_hint("Pick an OBS scene first (turn on Follow OBS so the list fills)")
+            return
+        if scene:
+            for other in self.presets:  # one preset per scene
+                if other.get("obs_scene") == scene:
+                    other["obs_scene"] = ""
+        self.presets[i]["obs_scene"] = scene
+        self._refresh_presets(select=i)
+        self.schedule_save()
+
+    # ---- hotkeys + OBS scene follower (background helpers)
+    def _sync_background(self):
+        pc = self.settings["pc"]
+        if pc.get("hotkeys", True) and self.hotkeys is None:
+            self.hotkeys = GlobalHotkeys().start()
+            if self.hotkeys.failed:
+                self.log("Hotkeys " + ", ".join(f"Ctrl+Alt+{n}" for n in self.hotkeys.failed)
+                         + " are already used by another program")
+        elif not pc.get("hotkeys", True) and self.hotkeys is not None:
+            self.hotkeys.stop()
+            self.hotkeys = None
+        if pc.get("follow_obs") and self.obs is None:
+            self.obs = ObsFollower(log=self.log).start()
+        elif not pc.get("follow_obs") and self.obs is not None:
+            self.obs.stop()
+            self.obs = None
+            self._obs_scene_seen = None
+        self._show_background_status()
+
+    def _show_background_status(self, snap=None):
+        if self.hotkeys is None:
+            hk = "Hotkeys are off"
+        elif self.hotkeys.failed:
+            hk = "Ctrl+Alt+" + ", ".join(map(str, self.hotkeys.failed)) + " are taken by another program; the others work"
+        else:
+            hk = "Ctrl+Alt+1..9 are ready"
+        self.hotkey_label.configure(text=hk)
+        if self.obs is None:
+            text = "Follow OBS is off"
+        else:
+            snap = snap or self.obs.snapshot()
+            if snap["status"] == "connected":
+                text = f"Connected to OBS. Live scene: {snap['scene'] or '-'}"
+            elif snap["status"] == "error":
+                text = f"OBS: {snap['error']} (trying again)"
+            else:
+                text = "Connecting to OBS..."
+        self.obs_label.configure(text=text)
+
+    def _background_tick(self):
+        if self.hotkeys is not None:
+            for n in self.hotkeys.pressed():
+                self.apply_preset(n - 1, f"Ctrl+Alt+{n}")
+        snap = None
+        if self.obs is not None:
+            snap = self.obs.snapshot()
+            if list(self.scene_combo.cget("values") or ()) != snap["scenes"]:
+                self.scene_combo.configure(values=snap["scenes"])
+            scene = snap["scene"]
+            if scene and scene != self._obs_scene_seen:
+                self._obs_scene_seen = scene
+                i = P.for_scene(self.presets, scene)
+                if i is not None:
+                    self.apply_preset(i, f'OBS scene "{scene}"')
+        self._show_background_status(snap)
+
     # ---- zoom buttons
     def _rebuild_zoom_buttons(self, lenses):
         for b in self.zoom_buttons:
@@ -469,6 +761,11 @@ class App:
         elif path == "pc.connect" and value == "wifi" and not self.settings["pc"].get("wifi_host"):
             pass  # nothing to connect to yet: the engine waits for an address
         self.apply(partial)
+        if path in ("pc.follow_obs", "pc.hotkeys"):
+            self._sync_background()
+        if path.startswith("phone."):
+            self._active_preset = None
+            self._mark_preset_buttons()
 
     def apply(self, partial):
         """Remember + send a partial settings dict."""
@@ -483,7 +780,8 @@ class App:
 
     def reset_image(self):
         d = S.DEFAULTS["phone"]
-        partial = {"phone": {k: d[k] for k in ("focus", "exposure", "white_balance", "torch", "stabilization", "hdr")}}
+        partial = {"phone": {k: d[k] for k in ("focus", "exposure", "white_balance", "torch", "stabilization", "hdr",
+                                               "anti_flicker")}}
         partial = S.deep_update({}, partial)
         for path, ctl in self.ctl.items():
             if path.startswith("phone.") and path not in ("phone.zoom", "phone.camera", "phone.resolution",
@@ -556,6 +854,7 @@ class App:
                    "This camera can't focus manually" if not manual_focus else "Switch Focus to Manual first")
         # exposure
         self._gate("phone.exposure.bias", ps["exposure"]["mode"] == "auto", "Only in Auto exposure")
+        self._gate("phone.anti_flicker", ps["exposure"]["mode"] == "auto", "Only in Auto exposure")
         for k in ("phone.exposure.iso", "phone.exposure.shutter_s"):
             self._gate(k, ps["exposure"]["mode"] == "manual", "Only in Manual exposure")
         iso = get("iso_range", None)
@@ -622,6 +921,10 @@ class App:
             stats = (stats + "  |  " if stats else "") + "Phone: " + d["phone_problem"]
         self.stats_label.configure(text=stats)
         self.vcam_label.configure(text=d["vcam"], foreground=d["vcam_color"])
+        self.expiry_label.configure(text=d["expiry"], foreground=d["expiry_color"])
+        if d["expiry_color"] != MUTED and d["expiry"] != self._expiry_logged:
+            self._expiry_logged = d["expiry"]
+            self.log(d["expiry"])
         if d["vcam_install"]:
             if not self.install_btn.winfo_ismapped():
                 self.install_btn.pack(side="left", padx=(8, 0))
@@ -647,6 +950,7 @@ class App:
             return
         try:
             self.refresh_from_status()
+            self._background_tick()
         except Exception:
             self.logger.exception("status tick failed")
         self._status_job = self.root.after(STATUS_MS, self._status_tick)

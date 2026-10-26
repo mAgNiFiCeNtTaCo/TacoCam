@@ -30,6 +30,7 @@ DEFAULTS = {
         "stabilization": "off",
         "hdr": False,
         "screen": "normal",
+        "anti_flicker": "off",
     },
     "pc": {
         "connect": "usb",
@@ -42,7 +43,10 @@ DEFAULTS = {
         "fps_out": 30,
         "vcam_name": "Taco Cam",
         "when_disconnected": "card",
+        "follow_obs": False,
+        "hotkeys": True,
     },
+    "presets": [],
 }
 
 ENUMS = {
@@ -55,6 +59,7 @@ ENUMS = {
     "phone.white_balance.mode": {"auto", "manual"},
     "phone.stabilization": {"off", "standard", "cinematic"},
     "phone.screen": {"normal", "dim"},
+    "phone.anti_flicker": {"off", "60hz", "50hz"},
     "pc.connect": {"usb", "wifi"},
     "pc.rotate": {"auto", 0, 90, 180, 270},
     "pc.output": set(OUTPUT_SIZES),
@@ -155,6 +160,8 @@ def sanitize(raw):
 
     if isinstance(raw, dict):
         walk(DEFAULTS, raw, out, "")
+        from .presets import sanitize_presets
+        out["presets"] = sanitize_presets(raw.get("presets"))
     return out
 
 

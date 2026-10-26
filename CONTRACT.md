@@ -98,7 +98,12 @@ the PC must turn the frame so the scene is upright for how the phone is held rig
   "torch": 0.0,                     // 0 = off, 0.01..1 = level (back camera with torch only)
   "stabilization": "off",           // "off" | "standard" | "cinematic" (adds latency; off is default)
   "hdr": false,                     // video HDR when the format supports it
-  "screen": "normal"                // "normal" | "dim" (phone shows black + small status to save battery/heat)
+  "screen": "normal",               // "normal" | "dim" (phone shows black + small status to save battery/heat)
+  "anti_flicker": "off"             // "off" | "60hz" | "50hz" (added 2026-10-25): in AUTO exposure only, the phone fixes
+                                    // the shutter to a flicker-safe time (60hz: 1/60 s, 50hz: 1/50 s, or 1/120 / 1/100 when
+                                    // that is longer than a frame) and steers ISO from the meter itself (bias still applies).
+                                    // STATE reports "off" when the camera/frame rate can't do it; in manual exposure it keeps
+                                    // the requested value (it applies again once exposure is back on auto).
 }
 ```
 
@@ -129,7 +134,13 @@ The lens switch-over itself is automatic (virtual device). Front camera: min dis
   "battery": 0.82, "charging": true,
   "thermal": "nominal",             // "nominal" | "fair" | "serious" | "critical" (phone lowers fps itself at serious+ and says so in LOG)
   "app_active": true,               // false right before iOS sends the app to the background (camera stops)
-  "error": null                     // text when the camera could not start / a setting failed
+  "error": null,                    // text when the camera could not start / a setting failed
+  "live": {"lens_position": 0.42, "iso": 200.0, "shutter_s": 0.016667, "temperature": 4650, "tint": 4},
+                                    // (added 2026-10-25) what the camera really uses right now, also in auto modes;
+                                    // the PC locks presets at these values. null before the camera runs.
+  "app_expires": "2026-11-01T20:30:00Z"
+                                    // (added 2026-10-25) when this sideloaded copy stops opening (ExpirationDate of the
+                                    // embedded provisioning profile, UTC ISO 8601); null when unknown. PC warns 2 days ahead.
 }
 ```
 

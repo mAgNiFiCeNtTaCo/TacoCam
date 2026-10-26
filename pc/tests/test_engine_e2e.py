@@ -153,6 +153,9 @@ ROUND_TRIPS = [
     ({"stabilization": "cinematic"}, lambda s, st: s["stabilization"] == "cinematic"),
     ({"hdr": True}, lambda s, st: s["hdr"] is True),
     ({"screen": "dim"}, lambda s, st: s["screen"] == "dim"),
+    ({"anti_flicker": "60hz"}, lambda s, st: s["anti_flicker"] == "60hz" and st["live"]["shutter_s"] == round(1 / 60, 6)),
+    ({"anti_flicker": "bogus"}, lambda s, st: s["anti_flicker"] == "60hz"),
+    ({"anti_flicker": "off"}, lambda s, st: s["anti_flicker"] == "off"),
     ({"camera": "front"}, lambda s, st: s["camera"] == "front" and s["torch"] == 0.0 and s["zoom"] >= 1.0
      and s["stabilization"] in ("off", "standard") and s["focus"]["mode"] == "auto"),
     ({"zoom": 0.5}, lambda s, st: s["zoom"] == 1.0),                       # front camera: no 0.5x

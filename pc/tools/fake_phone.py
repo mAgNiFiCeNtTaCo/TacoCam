@@ -22,6 +22,7 @@ import socket
 import sys
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from fractions import Fraction
 
 import av
@@ -53,7 +54,7 @@ DEFAULT_SETTINGS = {
     "focus": {"mode": "auto", "position": 0.5},
     "exposure": {"mode": "auto", "bias": 0.0, "iso": None, "shutter_s": None},
     "white_balance": {"mode": "auto", "temperature": 5000, "tint": 0},
-    "torch": 0.0, "stabilization": "off", "hdr": False, "screen": "normal",
+    "torch": 0.0, "stabilization": "off", "hdr": False, "screen": "normal", "anti_flicker": "off",
 }
 NESTED = ("focus", "exposure", "white_balance")
 
@@ -175,6 +176,7 @@ def normalize(s, prev, notes):
         return s["hdr"] and cam["hdr"]
     take("hdr", hdr)
     take("screen", lambda: enum(s["screen"], ("normal", "dim")))
+    take("anti_flicker", lambda: enum(s["anti_flicker"], ("off", "60hz", "50hz")))
     return out
 
 
@@ -456,6 +458,8 @@ class FakePhone:
         self.lock = threading.RLock()
         self.settings, _ = apply_settings(DEFAULT_SETTINGS, settings or {})
         self.app_active = True
+        # like a free Apple ID install: stops opening 7 days after signing
+        self.app_expires = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
         self.battery = 0.82
         self.session = None
         self.focus = None
@@ -549,7 +553,21 @@ class FakePhone:
                 "thermal": "nominal",
                 "app_active": self.app_active,
                 "error": None,
+                "live": self.live(s),
+                "app_expires": self.app_expires,
             }
+
+    @staticmethod
+    def live(s):
+        """What a real camera would report it uses right now (STATE live)."""
+        manual_exp = s["exposure"]["mode"] == "manual"
+        shutter = s["exposure"]["shutter_s"] if manual_exp else (
+            {"60hz": 1 / 60, "50hz": 1 / 50}.get(s["anti_flicker"], 1 / 50))
+        return {"lens_position": s["focus"]["position"] if s["focus"]["mode"] == "manual" else 0.42,
+                "iso": s["exposure"]["iso"] if manual_exp else 200.0,
+                "shutter_s": round(shutter, 6),
+                "temperature": s["white_balance"]["temperature"] if s["white_balance"]["mode"] == "manual" else 4650,
+                "tint": s["white_balance"]["tint"] if s["white_balance"]["mode"] == "manual" else 4}
 
     def send_state(self):
         sess = self.session

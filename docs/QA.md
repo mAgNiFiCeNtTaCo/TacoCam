@@ -46,7 +46,7 @@
 
 ## Needs the real iPhone (first-run checklist)
 
-1. Install `dist/TacoCam.ipa` with Sideloadly (`docs/INSTALL_IPHONE.md`). On the phone: Settings > General >
+1. Install `dist/TacoCam.ipa` with iloader (`docs/INSTALL_IPHONE.md`). On the phone: Settings > General >
    VPN & Device Management > trust your Apple ID. Open Taco Cam, allow the camera.
 2. Plug the phone into the PC, tap **Trust** if asked. Keep Taco Cam open on screen.
 3. Double-click `Taco Cam.bat`. The bottom bar should say "Connected to iPhone ..." and the picture appears.
