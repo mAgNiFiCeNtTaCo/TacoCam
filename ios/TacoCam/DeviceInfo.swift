@@ -47,6 +47,25 @@ enum DeviceInfo {
         "iPhone18,4": "iPhone Air",
     ]
 
+    /// When this sideloaded copy stops opening: ExpirationDate of the provisioning profile the signing tool
+    /// embedded (a signed plist). nil in the simulator or an unsigned build.
+    static let appExpires: Date? = {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url),
+              let start = data.range(of: Data("<?xml".utf8)),
+              let end = data.range(of: Data("</plist>".utf8), options: [], in: start.lowerBound..<data.endIndex)
+        else { return nil }
+        let xml = data.subdata(in: start.lowerBound..<end.upperBound)
+        guard let obj = try? PropertyListSerialization.propertyList(from: xml, options: [], format: nil),
+              let plist = obj as? [String: Any] else { return nil }
+        return plist["ExpirationDate"] as? Date
+    }()
+
+    static var appExpiresISO: String? {
+        guard let d = appExpires else { return nil }
+        return ISO8601DateFormatter().string(from: d)
+    }
+
     static var modelName: String {
         let id = machineIdentifier
         return names[id] ?? id

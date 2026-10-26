@@ -156,6 +156,11 @@ struct SettingsView: View {
                     Text("Brightness \(String(format: "%+.1f", model.desired.exposureBias)) EV")
                     Slider(value: model.binding(\.exposureBias), in: -3...3, step: 0.1)
                 }
+                Picker("Anti-flicker", selection: model.binding(\.antiFlicker)) {
+                    Text("Off").tag("off")
+                    Text("60 Hz (US)").tag("60hz")
+                    Text("50 Hz").tag("50hz")
+                }
             }
         }
     }
@@ -201,6 +206,10 @@ struct SettingsView: View {
         Section(header: Text("About")) {
             Text("\(DeviceInfo.modelName), iOS \(UIDevice.current.systemVersion)")
             Text("Camera: \(caps.name.isEmpty ? "-" : caps.name)")
+            if let exp = DeviceInfo.appExpires {
+                Text("This copy stops opening: \(exp.formatted(date: .abbreviated, time: .shortened)) (reinstall with iloader)")
+                    .font(.caption)
+            }
             Text("USB port 47777. Wi-Fi mode: \(model.addresses.isEmpty ? "no Wi-Fi address" : model.addresses.joined(separator: ", "))")
                 .font(.caption)
         }

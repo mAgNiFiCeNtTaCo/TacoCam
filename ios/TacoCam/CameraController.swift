@@ -68,6 +68,9 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     private var backDev: AVCaptureDevice?
     private var frontDev: AVCaptureDevice?
     private var devicesLooked = false
+    /// Anti-flicker: fixed flicker-safe shutter, ISO steered by the meter (session queue only).
+    private var flickerDuration: CMTime?
+    private var flickerTimer: DispatchSourceTimer?
 
     /// Called on the video queue for every frame.
     var onSampleBuffer: ((CMSampleBuffer) -> Void)?
@@ -187,6 +190,37 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     static func fpsList(_ d: AVCaptureDevice, resolution: String) -> [Int] {
         let fs = formats(d, resolution: resolution)
         return PhoneSettings.fpsChoices.filter { fps in fs.contains { supports($0, fps: fps) } }
+    }
+
+    /// Shutter time that matches the mains light flicker (lights pulse at 2x the mains frequency, so any
+    /// multiple of 1/120 s or 1/100 s is band-free) and fits in one frame. nil if the format can't do it.
+    static func flickerSafeDuration(_ mode: String, fps: Int, format f: AVCaptureDevice.Format) -> CMTime? {
+        let frame = 1.0 / Double(max(fps, 1))
+        let secs: Double
+        switch mode {
+        case "60hz": secs = 1.0 / 60 <= frame + 1e-6 ? 1.0 / 60 : 1.0 / 120
+        case "50hz": secs = 1.0 / 50 <= frame + 1e-6 ? 1.0 / 50 : 1.0 / 100
+        default: return nil
+        }
+        let lo = CMTimeGetSeconds(f.minExposureDuration)
+        let hi = CMTimeGetSeconds(f.maxExposureDuration)
+        if secs < lo - 1e-9 || secs > hi + 1e-9 { return nil }
+        return CMTimeMakeWithSeconds(secs, preferredTimescale: 1_000_000)
+    }
+
+    /// What the camera is really using right now (STATE `live`), for "lock at the current values".
+    static func liveValues(_ d: AVCaptureDevice) -> [String: Any] {
+        var out: [String: Any] = [
+            "lens_position": (Double(d.lensPosition) * 1000).rounded() / 1000,
+            "iso": round1(Double(d.iso)),
+            "shutter_s": (CMTimeGetSeconds(d.exposureDuration) * 1_000_000).rounded() / 1_000_000,
+        ]
+        let tt = d.temperatureAndTintValues(for: d.deviceWhiteBalanceGains)
+        if tt.temperature.isFinite && tt.tint.isFinite {
+            out["temperature"] = Int(min(max(Double(tt.temperature), 2500), 8000).rounded())
+            out["tint"] = Int(min(max(Double(tt.tint), -150), 150).rounded())
+        }
+        return out
     }
 
     static func stabMode(_ name: String) -> AVCaptureVideoStabilizationMode {
@@ -371,6 +405,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         }
 
         // 3. Live parameters.
+        var flicker: CMTime? = nil
         do {
             try d.lockForConfiguration()
             applyFrameRate(d, fps: eff.fps)
@@ -408,6 +443,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             // Exposure.
             let f = d.activeFormat
             if want.exposureMode == "manual" && d.isExposureModeSupported(.custom) {
+                flicker = nil
                 let iso = Float(want.exposureISO ?? Double(d.iso))
                 let isoC = min(max(iso, f.minISO), f.maxISO)
                 var maxDur = f.maxExposureDuration
@@ -424,8 +460,24 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                 eff.exposureShutter = (CMTimeGetSeconds(dur) * 1_000_000).rounded() / 1_000_000
             } else {
                 if want.exposureMode == "manual" { errors.append("Manual exposure not supported on this camera") }
-                if d.exposureMode != .continuousAutoExposure && d.isExposureModeSupported(.continuousAutoExposure) {
-                    d.exposureMode = .continuousAutoExposure
+                if want.antiFlicker != "off" && d.isExposureModeSupported(.custom),
+                   let dur = CameraController.flickerSafeDuration(want.antiFlicker, fps: eff.fps, format: f) {
+                    // Auto brightness with a fixed shutter: flickerTick() steers ISO from the meter.
+                    flicker = dur
+                    if d.exposureMode != .custom
+                        || abs(CMTimeGetSeconds(d.exposureDuration) - CMTimeGetSeconds(dur)) > 0.00002 {
+                        let iso = min(max(d.iso, f.minISO), f.maxISO)
+                        d.setExposureModeCustom(duration: dur, iso: iso, completionHandler: nil)
+                    }
+                } else {
+                    flicker = nil
+                    if want.antiFlicker != "off" {
+                        errors.append("Anti-flicker is not possible with this camera and frame rate")
+                        eff.antiFlicker = "off"
+                    }
+                    if d.exposureMode != .continuousAutoExposure && d.isExposureModeSupported(.continuousAutoExposure) {
+                        d.exposureMode = .continuousAutoExposure
+                    }
                 }
                 eff.exposureMode = "auto"
             }
@@ -482,6 +534,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         } catch {
             errors.append("Could not change camera settings: \(error.localizedDescription)")
         }
+        setFlicker(flicker)
 
         // Stabilization + HDR in effect.
         if let conn = videoOutput.connection(with: .video), conn.isVideoStabilizationSupported {
@@ -512,6 +565,41 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                              streamWidth: Int(dims.width), streamHeight: Int(dims.height),
                              back: backCaps, front: frontCaps, device: d,
                              error: errors.isEmpty ? nil : errors.joined(separator: "; "))
+    }
+
+    // MARK: anti-flicker (session queue)
+
+    private func setFlicker(_ dur: CMTime?) {
+        flickerDuration = dur
+        if dur != nil && flickerTimer == nil {
+            let t = DispatchSource.makeTimerSource(queue: sessionQueue)
+            t.schedule(deadline: .now() + 0.25, repeating: 0.25)
+            t.setEventHandler { [weak self] in self?.flickerTick() }
+            t.resume()
+            flickerTimer = t
+        } else if dur == nil, let t = flickerTimer {
+            t.cancel()
+            flickerTimer = nil
+        }
+    }
+
+    /// Keeps the fixed-shutter picture at the auto brightness target: the meter's offset (EV, includes the
+    /// brightness bias) is turned into an ISO change, in damped steps so the picture doesn't pump.
+    private func flickerTick() {
+        guard let dur = flickerDuration, let d = device, d.exposureMode == .custom, !d.isAdjustingExposure else { return }
+        let off = d.exposureTargetOffset
+        if !off.isFinite || abs(off) < 0.15 { return }
+        let step = max(-1, min(1, -off)) * 0.6
+        let f = d.activeFormat
+        let iso = min(max(d.iso * powf(2, step), f.minISO), f.maxISO)
+        if abs(iso - d.iso) < 0.5 { return }
+        do {
+            try d.lockForConfiguration()
+            d.setExposureModeCustom(duration: dur, iso: iso, completionHandler: nil)
+            d.unlockForConfiguration()
+        } catch {
+            // try again next tick
+        }
     }
 
     private func applyFrameRate(_ d: AVCaptureDevice, fps: Int) {

@@ -52,6 +52,12 @@ struct ContentView: View {
                 .font(.headline)
                 .foregroundColor(model.connected ? .green : .white)
                 .fixedSize(horizontal: false, vertical: true)
+            if let warn = model.expiryWarning {
+                Text(warn)
+                    .font(.subheadline)
+                    .foregroundColor(tacoOrange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let err = model.cameraError {
                 Text(err)
                     .font(.subheadline)

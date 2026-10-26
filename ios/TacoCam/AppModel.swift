@@ -50,6 +50,7 @@ final class AppModel: ObservableObject {
     private var tickCount = 0
     private var rotationCoordinator: AnyObject?
     private var coordinatorDeviceID: String?
+    private var currentDevice: AVCaptureDevice?
     private var lastUprightOrientation: UIDeviceOrientation = .portrait
     private var bgTask = UIBackgroundTaskIdentifier.invalid
 
@@ -263,6 +264,7 @@ final class AppModel: ObservableObject {
             server.sendLog(e)
         }
         lastLoggedError = r.error
+        currentDevice = r.device
         if let d = r.device, d.uniqueID != coordinatorDeviceID {
             coordinatorDeviceID = d.uniqueID
             if #available(iOS 17.0, *) {
@@ -376,7 +378,19 @@ final class AppModel: ObservableObject {
             "thermal": thermal,
             "app_active": appActive,
             "error": cameraError.map { $0 as Any } ?? NSNull(),
+            "live": currentDevice.map { CameraController.liveValues($0) as Any } ?? NSNull(),
+            "app_expires": DeviceInfo.appExpiresISO.map { $0 as Any } ?? NSNull(),
         ]
+    }
+
+    /// Phone-screen warning when the sideloaded copy runs out within 2 days (free Apple ID: 7 days).
+    var expiryWarning: String? {
+        guard let exp = DeviceInfo.appExpires else { return nil }
+        let hours = exp.timeIntervalSinceNow / 3600
+        if hours > 48 { return nil }
+        if hours <= 0 { return "This copy of Taco Cam has expired: reinstall it with iloader on the PC" }
+        if hours < 24 { return "Taco Cam stops opening in \(Int(hours.rounded(.up))) h: reinstall it with iloader" }
+        return "Taco Cam stops opening in 2 days: reinstall it with iloader"
     }
 
     private func orientationName(_ o: UIDeviceOrientation) -> String {

@@ -22,8 +22,10 @@ struct PhoneSettings: Equatable {
     var stabilization = "off"
     var hdr = false
     var screen = "normal"
+    var antiFlicker = "off"
 
     static let resolutions = ["720p", "1080p", "4k"]
+    static let antiFlickers = ["off", "60hz", "50hz"]
     static let fpsChoices = [24, 25, 30, 60]
     static let codecs = ["h264", "hevc"]
     static let stabilizations = ["off", "standard", "cinematic"]
@@ -84,6 +86,7 @@ struct PhoneSettings: Equatable {
         if let v = d["stabilization"] as? String, PhoneSettings.stabilizations.contains(v) { stabilization = v }
         if let v = d["hdr"] as? Bool { hdr = v }
         if let v = d["screen"] as? String, v == "normal" || v == "dim" { screen = v }
+        if let v = d["anti_flicker"] as? String, PhoneSettings.antiFlickers.contains(v) { antiFlicker = v }
     }
 
     /// Whole numbers go out as JSON integers (5000, not 5000.0), others rounded to 6 decimals.
@@ -122,6 +125,7 @@ struct PhoneSettings: Equatable {
             "stabilization": stabilization,
             "hdr": hdr,
             "screen": screen,
+            "anti_flicker": antiFlicker,
         ]
     }
 
