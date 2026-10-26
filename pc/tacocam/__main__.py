@@ -3,7 +3,30 @@ import logging
 import logging.handlers
 import sys
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox
+
+APP_ID = "TacoCam.PC"
+ICON_DIR = Path(__file__).resolve().parent / "assets"
+
+
+def _own_taskbar_entry():
+    """Without its own AppUserModelID Windows files this window under pythonw.exe with other Python apps
+    (and shows their icon). Must run before the first window opens."""
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
+    except Exception:
+        pass
+
+
+def _set_icon(root):
+    """Taco Cam icon on the window, the taskbar and every message box. Only iconbitmap: adding iconphoto on
+    top of it leaves Windows with a blank icon (tested 2026-10-25)."""
+    try:
+        root.iconbitmap(default=str(ICON_DIR / "taco-cam.ico"))
+    except tk.TclError:
+        logging.getLogger("tacocam").warning("Taco Cam icon not found in %s", ICON_DIR)
 
 
 def _setup_logging():
@@ -26,7 +49,9 @@ def main():
     from .app import App, acquire_single_instance
 
     lock = acquire_single_instance()
+    _own_taskbar_entry()
     root = tk.Tk()
+    _set_icon(root)
     if lock is None:
         root.withdraw()
         messagebox.showinfo("Taco Cam", "Taco Cam is already running.\n\nLook for its window in the taskbar.")

@@ -14,6 +14,9 @@ explain in plain words and finish jobs end to end.
 ## Layout
 - `ios/`: Swift app (XcodeGen `project.yml`), built only on GitHub Actions (`.github/workflows/ios.yml`).
 - `pc/tacocam/`: engine (protocol, usbmux, link, decoder, pipeline, vcam, engine) + window (app, settings, ui_widgets).
+- `pc/tacocam/assets/taco-cam.ico`: window/taskbar icon, drawn by `pc/tools/make_icon.py`. `__main__.py` sets the
+  AppUserModelID `TacoCam.PC` (else Windows groups it with other pythonw apps) and uses only `iconbitmap`
+  (adding `iconphoto` too gives a blank icon).
 - `pc/tools/fake_phone.py`: test iPhone on 127.0.0.1:47777. `pc/vcam/`: Unity Capture DLLs + admin install scripts.
 - `dist/TacoCam.ipa` (gitignored), `settings.json` (gitignored, written by the window), `taco-cam.log`.
 
