@@ -16,6 +16,10 @@ struct CameraCaps {
     var isoRange: [Double] = []
     var shutterRange: [Double] = []
     var focusManual = false
+    var focusLock = false        // can at least hold the focus where it is (combined back camera)
+    var exposureManual = false   // ISO + shutter can be set
+    var wbManual = false         // temperature + tint can be set
+    var antiFlicker = false      // fixed-shutter auto exposure possible
     var hdr = false
     var stabilization: [String] = ["off"]
 
@@ -32,6 +36,10 @@ struct CameraCaps {
             "iso_range": isoRange.map { PhoneSettings.json($0) },
             "shutter_range_s": shutterRange,
             "focus_manual": focusManual,
+            "focus_lock": focusLock,
+            "exposure_manual": exposureManual,
+            "wb_manual": wbManual,
+            "anti_flicker": antiFlicker,
             "hdr": hdr,
             "stabilization": stabilization,
         ]
@@ -293,6 +301,10 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         c.isoRange = [round1(Double(f.minISO)), round1(Double(f.maxISO))]
         c.shutterRange = [(minShutter * 1_000_000).rounded() / 1_000_000, (maxShutter * 1_000_000).rounded() / 1_000_000]
         c.focusManual = d.isLockingFocusWithCustomLensPositionSupported
+        c.focusLock = c.focusManual || d.isFocusModeSupported(.autoFocus) || d.isFocusModeSupported(.locked)
+        c.exposureManual = d.isExposureModeSupported(.custom)
+        c.wbManual = d.isLockingWhiteBalanceWithCustomDeviceGainsSupported
+        c.antiFlicker = d.isExposureModeSupported(.custom)
         c.hdr = f.isVideoHDRSupported
         return c
     }
@@ -432,6 +444,15 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                 }
                 eff.focusMode = "manual"
                 eff.focusPosition = Double(pos)
+            } else if want.focusMode == "manual" && (d.isFocusModeSupported(.autoFocus) || d.isFocusModeSupported(.locked)) {
+                // The combined back camera (0.5x-1x) can't take a lens position: focus once on the middle of
+                // the picture, then hold it there (autoFocus locks by itself when done).
+                if d.focusMode == .continuousAutoFocus {
+                    if d.isFocusPointOfInterestSupported { d.focusPointOfInterest = CGPoint(x: 0.5, y: 0.5) }
+                    d.focusMode = d.isFocusModeSupported(.autoFocus) ? .autoFocus : .locked
+                }
+                eff.focusMode = "manual"
+                eff.focusPosition = (Double(d.lensPosition) * 1000).rounded() / 1000
             } else {
                 if want.focusMode == "manual" { errors.append("Manual focus not supported on this camera") }
                 if d.isFocusModeSupported(.continuousAutoFocus) && d.focusMode != .continuousAutoFocus {
@@ -458,6 +479,13 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                 eff.exposureMode = "manual"
                 eff.exposureISO = CameraController.round1(Double(isoC))
                 eff.exposureShutter = (CMTimeGetSeconds(dur) * 1_000_000).rounded() / 1_000_000
+            } else if want.exposureMode == "manual" && d.isExposureModeSupported(.locked) {
+                // Combined back camera: no ISO/shutter values, but the current brightness can be held.
+                flicker = nil
+                if d.exposureMode != .locked { d.exposureMode = .locked }
+                eff.exposureMode = "manual"
+                eff.exposureISO = CameraController.round1(Double(d.iso))
+                eff.exposureShutter = (CMTimeGetSeconds(d.exposureDuration) * 1_000_000).rounded() / 1_000_000
             } else {
                 if want.exposureMode == "manual" { errors.append("Manual exposure not supported on this camera") }
                 if want.antiFlicker != "off" && d.isExposureModeSupported(.custom),
@@ -472,7 +500,9 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                 } else {
                     flicker = nil
                     if want.antiFlicker != "off" {
-                        errors.append("Anti-flicker is not possible with this camera and frame rate")
+                        errors.append(d.isExposureModeSupported(.custom)
+                            ? "Anti-flicker is not possible at this frame rate"
+                            : "Anti-flicker needs a single-lens camera: the back camera's combined 0.5x-1x mode doesn't allow it")
                         eff.antiFlicker = "off"
                     }
                     if d.exposureMode != .continuousAutoExposure && d.isExposureModeSupported(.continuousAutoExposure) {
@@ -504,6 +534,15 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                 eff.wbMode = "manual"
                 eff.wbTemperature = Double(t).rounded()
                 eff.wbTint = Double(tint).rounded()
+            } else if want.wbMode == "manual" && d.isWhiteBalanceModeSupported(.locked) {
+                // Combined back camera: no temperature/tint values, but the current colors can be held.
+                if d.whiteBalanceMode != .locked { d.whiteBalanceMode = .locked }
+                eff.wbMode = "manual"
+                let tt = d.temperatureAndTintValues(for: d.deviceWhiteBalanceGains)
+                if tt.temperature.isFinite && tt.tint.isFinite {
+                    eff.wbTemperature = PhoneSettings.clamp(Double(tt.temperature), 2500, 8000).rounded()
+                    eff.wbTint = PhoneSettings.clamp(Double(tt.tint), -150, 150).rounded()
+                }
             } else {
                 if want.wbMode == "manual" { errors.append("Manual white balance not supported on this camera") }
                 if d.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance)

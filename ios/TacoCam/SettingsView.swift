@@ -127,6 +127,9 @@ struct SettingsView: View {
                             .font(.caption)
                         Slider(value: model.binding(\.focusPosition), in: 0...1)
                     }
+                } else if caps.focusLock {
+                    Text("Focus is held: the camera focuses once on the middle of the picture, then stays there.")
+                        .font(.caption)
                 } else {
                     Text("This camera does not allow manual focus.")
                         .font(.caption)
@@ -142,7 +145,10 @@ struct SettingsView: View {
                 Text("Manual").tag("manual")
             }
             .pickerStyle(.segmented)
-            if model.desired.exposureMode == "manual" {
+            if model.desired.exposureMode == "manual" && !caps.exposureManual {
+                Text("Brightness is held where it is now (this camera has no ISO / shutter setting).")
+                    .font(.caption)
+            } else if model.desired.exposureMode == "manual" {
                 VStack(alignment: .leading) {
                     Text("ISO \(Int(model.effective.exposureISO ?? isoBinding.wrappedValue))")
                     Slider(value: isoBinding, in: isoRange)
@@ -156,10 +162,12 @@ struct SettingsView: View {
                     Text("Brightness \(String(format: "%+.1f", model.desired.exposureBias)) EV")
                     Slider(value: model.binding(\.exposureBias), in: -3...3, step: 0.1)
                 }
-                Picker("Anti-flicker", selection: model.binding(\.antiFlicker)) {
-                    Text("Off").tag("off")
-                    Text("60 Hz (US)").tag("60hz")
-                    Text("50 Hz").tag("50hz")
+                if caps.antiFlicker {
+                    Picker("Anti-flicker", selection: model.binding(\.antiFlicker)) {
+                        Text("Off").tag("off")
+                        Text("60 Hz (US)").tag("60hz")
+                        Text("50 Hz").tag("50hz")
+                    }
                 }
             }
         }
@@ -172,7 +180,10 @@ struct SettingsView: View {
                 Text("Manual").tag("manual")
             }
             .pickerStyle(.segmented)
-            if model.desired.wbMode == "manual" {
+            if model.desired.wbMode == "manual" && !caps.wbManual {
+                Text("Colors are held where they are now.")
+                    .font(.caption)
+            } else if model.desired.wbMode == "manual" {
                 VStack(alignment: .leading) {
                     Text("Temperature \(Int(model.desired.wbTemperature)) K")
                     Slider(value: model.binding(\.wbTemperature), in: 2500...8000, step: 50)
