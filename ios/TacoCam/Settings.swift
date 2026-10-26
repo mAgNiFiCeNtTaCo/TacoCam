@@ -5,6 +5,7 @@ import Foundation
 struct PhoneSettings: Equatable {
     var camera = "back"
     var zoom: Double = 1.0
+    var zoomGlide: Double = 0       // seconds a zoom change takes (0 = jump)
     var resolution = "1080p"
     var fps = 30
     var codec = "h264"
@@ -54,6 +55,7 @@ struct PhoneSettings: Equatable {
     mutating func merge(_ d: [String: Any]) {
         if let v = d["camera"] as? String, v == "back" || v == "front" { camera = v }
         if let v = PhoneSettings.number(d["zoom"]) { zoom = PhoneSettings.clamp(v, 0.5, 100) }
+        if let v = PhoneSettings.number(d["zoom_glide_s"]) { zoomGlide = PhoneSettings.clamp(v, 0, 3) }
         if let v = d["resolution"] as? String, PhoneSettings.resolutions.contains(v) { resolution = v }
         if let v = PhoneSettings.number(d["fps"]) {
             fps = PhoneSettings.fpsChoices.min(by: { abs(Double($0) - v) < abs(Double($1) - v) }) ?? 30
@@ -105,6 +107,7 @@ struct PhoneSettings: Equatable {
         return [
             "camera": camera,
             "zoom": PhoneSettings.json(zoom),
+            "zoom_glide_s": PhoneSettings.json(zoomGlide),
             "resolution": resolution,
             "fps": fps,
             "codec": codec,

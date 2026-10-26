@@ -1,6 +1,7 @@
-"""Watches which OBS scene is live (obs-websocket, asked once a second) so presets can follow it.
+"""Watches OBS (obs-websocket, asked once a second): which scene is live, so presets can follow it, and
+whether OBS is streaming, so the pre-show check can run when the show starts.
 
-Runs only while "Follow OBS scenes" is on. Reconnects by itself; never changes anything in OBS.
+Runs while "Follow OBS" or "Check when OBS goes live" is on. Reconnects by itself; never changes anything in OBS.
 """
 import threading
 import time
@@ -21,6 +22,7 @@ class ObsFollower:
         self._lock = threading.Lock()
         self.scene = None          # live (program) scene name
         self.scenes = []           # all scene names, for linking presets
+        self.streaming = None      # True / False once known, None when OBS can't be reached
         self.status = "off"        # off | connecting | connected | error
         self.error = None
 
@@ -38,11 +40,12 @@ class ObsFollower:
         if self._thread is not None:
             self._thread.join(4.0)
             self._thread = None
-        self._set(status="off", scene=None)
+        self._set(status="off", scene=None, streaming=None)
 
     def snapshot(self):
         with self._lock:
-            return {"status": self.status, "scene": self.scene, "scenes": list(self.scenes), "error": self.error}
+            return {"status": self.status, "scene": self.scene, "scenes": list(self.scenes),
+                    "streaming": self.streaming, "error": self.error}
 
     def _set(self, **kw):
         with self._lock:
@@ -60,7 +63,7 @@ class ObsFollower:
                 client = self._factory().connect()
                 self._set(status="connected", error=None)
                 if said_error:
-                    self._log("Connected to OBS: presets follow the live scene")
+                    self._log("Connected to OBS")
                 said_error = None
                 next_list = 0.0
                 while not self._stop.is_set():
@@ -71,14 +74,15 @@ class ObsFollower:
                         next_list = now + SCENES_EVERY_S
                     cur = client.request("GetCurrentProgramScene")
                     self._set(scene=cur.get("currentProgramSceneName") or cur.get("sceneName"))
+                    self._set(streaming=bool(client.request("GetStreamStatus").get("outputActive")))
                     self._stop.wait(POLL_S)
             except (OSError, ObsError, ValueError) as e:
                 msg = str(e) or type(e).__name__
                 if isinstance(e, OSError) and not isinstance(e, ObsError):
                     msg = "OBS is not running or its websocket server is off"
-                self._set(status="error", error=msg, scene=None)
+                self._set(status="error", error=msg, scene=None, streaming=None)
                 if msg != said_error:
-                    self._log(f"OBS scenes: {msg}")
+                    self._log(f"OBS: {msg}")
                     said_error = msg
             finally:
                 if client is not None:

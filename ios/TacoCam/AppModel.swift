@@ -19,6 +19,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var battery: Float = -1
     @Published private(set) var charging = false
     @Published private(set) var thermal = "nominal"
+    /// Why iOS paused the camera (STATE `interrupted`): "background" | "other_app" | "split_screen" | "too_hot" | "other".
+    @Published private(set) var interruption: String?
     @Published var showSettings = false
 
     let camera = CameraController()
@@ -129,6 +131,13 @@ final class AppModel: ObservableObject {
         }
         camera.onEvent = { text in
             server.sendLog(text)
+        }
+        camera.onInterruption = { [weak self] reason in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if self.interruption != reason { self.interruption = reason }
+                self.scheduleState()
+            }
         }
         encoder.onFrame = { frame in
             server.sendVideo(frame)
@@ -272,6 +281,12 @@ final class AppModel: ObservableObject {
             }
         }
         scheduleState()
+        if r.glideSeconds > 0 {
+            // Holds wait for the zoom glide to end (CameraController); apply once more when it has.
+            DispatchQueue.main.asyncAfter(deadline: .now() + r.glideSeconds + 0.15) { [weak self] in
+                self?.applySettings()
+            }
+        }
         if applyAgain {
             applyAgain = false
             applySettings()
@@ -309,6 +324,7 @@ final class AppModel: ObservableObject {
         case .active:
             if !appActive {
                 appActive = true
+                if interruption == "background" { interruption = nil }
                 server.restartIfNeeded()
                 cameraRunning = false  // iOS stopped it; start again
                 updateCameraRunning()
@@ -377,6 +393,7 @@ final class AppModel: ObservableObject {
             "charging": charging,
             "thermal": thermal,
             "app_active": appActive,
+            "interrupted": interruption.map { $0 as Any } ?? NSNull(),
             "error": cameraError.map { $0 as Any } ?? NSNull(),
             "live": currentDevice.map { CameraController.liveValues($0) as Any } ?? NSNull(),
             "app_expires": DeviceInfo.appExpiresISO.map { $0 as Any } ?? NSNull(),
@@ -467,6 +484,10 @@ final class AppModel: ObservableObject {
     private func heartbeatTick() {
         tickCount += 1
         readBattery()
+        // iOS doesn't always say an interruption ended (e.g. the session was stopped meanwhile).
+        if interruption != nil && camera.session.isRunning && !camera.session.isInterrupted {
+            interruption = nil
+        }
         if tickCount % 3 == 0 {
             let a = DeviceInfo.addresses()
             if a != addresses { addresses = a }
@@ -484,6 +505,16 @@ final class AppModel: ObservableObject {
             return "Connected: starting video..."
         }
         return String(format: "Connected: %.0f fps, %.1f Mbps", fpsOut, mbpsOut)
+    }
+
+    var interruptionText: String? {
+        switch interruption ?? "" {
+        case "", "background": return nil
+        case "other_app": return "Camera paused: another app (FaceTime, a call) is using it"
+        case "split_screen": return "Camera paused: close split screen / slide over"
+        case "too_hot": return "Camera paused: the iPhone is too hot"
+        default: return "Camera paused by iOS"
+        }
     }
 
     var batteryText: String {

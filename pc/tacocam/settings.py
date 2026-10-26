@@ -19,6 +19,7 @@ DEFAULTS = {
     "phone": {
         "camera": "back",
         "zoom": 1.0,
+        "zoom_glide_s": 0.5,
         "resolution": "1080p",
         "fps": 30,
         "codec": "h264",
@@ -47,6 +48,7 @@ DEFAULTS = {
         "hotkeys": True,
         "clip_seconds": 30,
         "clip_rotate": "auto",
+        "check_on_live": True,
     },
     "presets": [],
 }
@@ -62,6 +64,7 @@ ENUMS = {
     "phone.stabilization": {"off", "standard", "cinematic"},
     "phone.screen": {"normal", "dim"},
     "phone.anti_flicker": {"off", "60hz", "50hz"},
+    "phone.zoom_glide_s": {0, 0.5, 1, 2},
     "pc.connect": {"usb", "wifi"},
     "pc.rotate": {"auto", 0, 90, 180, 270},
     "pc.output": set(OUTPUT_SIZES),

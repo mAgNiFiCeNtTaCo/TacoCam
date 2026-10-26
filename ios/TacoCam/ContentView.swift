@@ -58,6 +58,12 @@ struct ContentView: View {
                     .foregroundColor(tacoOrange)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let paused = model.interruptionText {
+                Text(paused)
+                    .font(.subheadline)
+                    .foregroundColor(tacoOrange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let err = model.cameraError {
                 Text(err)
                     .font(.subheadline)

@@ -28,6 +28,28 @@ def pump(root, seconds=0.0, until=None, step=0.02):
         time.sleep(step)
 
 
+class QuietObs:
+    """Stands in for the OBS watcher in windows made by tests, so they never talk to the real OBS."""
+
+    def __init__(self, *a, **kw):
+        pass
+
+    def start(self):
+        return self
+
+    def stop(self):
+        pass
+
+    def snapshot(self):
+        return {"status": "connecting", "scene": None, "scenes": [], "streaming": None, "error": None}
+
+
+@pytest.fixture(autouse=True)
+def quiet_obs(monkeypatch):
+    from tacocam import app
+    monkeypatch.setattr(app, "ObsFollower", QuietObs)
+
+
 @pytest.fixture
 def tk_root():
     try:

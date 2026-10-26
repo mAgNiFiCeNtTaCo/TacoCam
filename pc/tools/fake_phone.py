@@ -52,7 +52,8 @@ CAMERAS = {
 }
 
 DEFAULT_SETTINGS = {
-    "camera": "back", "zoom": 1.0, "resolution": "1080p", "fps": 30, "codec": "h264", "bitrate_mbps": 16,
+    "camera": "back", "zoom": 1.0, "zoom_glide_s": 0.0, "resolution": "1080p", "fps": 30, "codec": "h264",
+    "bitrate_mbps": 16,
     "focus": {"mode": "auto", "position": 0.5},
     "exposure": {"mode": "auto", "bias": 0.0, "iso": None, "shutter_s": None},
     "white_balance": {"mode": "auto", "temperature": 5000, "tint": 0},
@@ -121,6 +122,7 @@ def normalize(s, prev, notes):
     cam = CAMERAS[out["camera"]]
     take("zoom", lambda: round(_clamp(_num(s["zoom"]), cam["min_zoom"], cam["max_zoom"]), 3))
     out["zoom"] = _clamp(out["zoom"], cam["min_zoom"], cam["max_zoom"])
+    take("zoom_glide_s", lambda: round(_clamp(_num(s["zoom_glide_s"]), 0.0, 3.0), 3))
     take("resolution", lambda: enum(s["resolution"], cam["resolutions"]))
 
     def fps():
@@ -460,6 +462,7 @@ class FakePhone:
         self.lock = threading.RLock()
         self.settings, _ = apply_settings(DEFAULT_SETTINGS, settings or {})
         self.app_active = True
+        self.interrupted = None    # STATE interrupted: why iOS paused the camera
         # like a free Apple ID install: stops opening 7 days after signing
         self.app_expires = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
         self.battery = 0.82
@@ -554,6 +557,7 @@ class FakePhone:
                 "charging": True,
                 "thermal": "nominal",
                 "app_active": self.app_active,
+                "interrupted": self.interrupted,
                 "error": None,
                 "live": self.live(s),
                 "app_expires": self.app_expires,
@@ -625,6 +629,13 @@ class FakePhone:
         self.send_state()
         self._key_request.set()
 
+    def set_interrupted(self, reason):
+        """Pretend iOS paused the camera ("other_app", "too_hot", ...; None = running again): no video."""
+        with self.lock:
+            self.interrupted = reason
+        self.send_state()
+        self._key_request.set()
+
     def change_from_screen(self, patch):
         with self.lock:
             self.settings, notes = apply_settings(self.settings, patch)
@@ -650,7 +661,7 @@ class FakePhone:
         next_t = time.monotonic()
         while not self._stop.is_set():
             sess = self.session
-            if sess is None or not sess.streaming or sess.closed or not self.app_active:
+            if sess is None or not sess.streaming or sess.closed or not self.app_active or self.interrupted:
                 enc, enc_key, sent_on = None, None, None
                 self._stop.wait(0.02)
                 next_t = time.monotonic()
@@ -711,7 +722,8 @@ class FakePhone:
 def _console(phone):
     """Typed commands. Returns True for "quit"; False when input ends (keep running then: on Windows the
     NUL device looks like a terminal and is at its end at once)."""
-    help_text = "commands: rotation 0|90|180|270, background, foreground, zoom N, camera back|front, torch N, quit"
+    help_text = ("commands: rotation 0|90|180|270, background, foreground, zoom N, camera back|front, torch N, "
+                 "pause [other_app|too_hot|split_screen], resume, quit")
     print(help_text, flush=True)
     for line in sys.stdin:
         parts = line.strip().split()
@@ -727,6 +739,10 @@ def _console(phone):
                 phone.set_app_active(False)
             elif cmd in ("foreground", "fg"):
                 phone.set_app_active(True)
+            elif cmd == "pause":
+                phone.set_interrupted(args[0] if args else "other_app")
+            elif cmd == "resume":
+                phone.set_interrupted(None)
             elif cmd == "zoom" and args:
                 phone.change_from_screen({"zoom": float(args[0])})
             elif cmd == "camera" and args:

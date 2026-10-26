@@ -57,10 +57,13 @@ you not to press OBS's button.
 - **Click** the picture to focus on that spot (a small orange square shows where).
 - **Mouse wheel** on the picture zooms.
 - Under it: big **zoom buttons** (0.5x, 1x, 3x... whatever lenses your phone has) and a **zoom slider**.
+- Under those: your preset buttons, **Pre-show check** and **Save last 30 s**.
 
 **Bottom bar:** connection ("Searching for iPhone on USB", "iPhone found: open Taco Cam on the phone",
 "Connected to ..."), phone battery, a warning if the phone gets hot, picture speed (in/out fps, Mbps, delay,
-dropped frames), and whether the "Taco Cam" camera is ready for OBS.
+dropped frames), and whether the "Taco Cam" camera is ready for OBS. When the phone is connected but its camera
+stopped, a red line says why (Taco Cam in the background, another app such as FaceTime took the camera, split
+screen, phone too hot).
 
 Greyed-out controls are things the current camera can't do; the little orange text says why. The window
 always shows the value the phone really uses (it may adjust what you ask for).
@@ -73,6 +76,7 @@ always shows the value the phone really uses (it may adjust what you ask for).
 | Frame rate | 24 / 25 / 30 / 60, only what the camera supports. |
 | Video codec | H.264 (safe) or HEVC (sharper at the same Mbps). |
 | Bitrate | How much data per second. Higher = sharper. 16 Mbps is good for 1080p. |
+| Zoom speed | How the zoom moves when you switch presets, click a zoom button or turn the wheel: **Smooth** (default) glides there in half a second instead of jumping; Slow / Very slow take 1 / 2 s; Instant jumps. Focus / brightness / color holds of a preset start once the glide has ended. |
 
 ### Image tab
 | Control | What it does |
@@ -115,6 +119,7 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 | Clip length / Save clip now | **Ctrl+Alt+0** or the **Save last 30 s** button saves the last 15/30/60 s of the camera as an MP4 in `Videos\Taco Cam clips` (full phone quality, no re-encoding, upright). |
 | Clip / scanner turn | Which way clips and the scanner feed are turned upright. Auto follows how the phone is held. |
 | Card scanner feed | The Whatnot card scanner can read Taco Cam's picture directly, without OBS and without JPEG (pick **Taco Cam (direct, full quality)** in the scanner). 1080p is what the scanner wants; it shrinks a 4K picture to 1080p. |
+| Pre-show check | When OBS goes live: **Check and warn me** (on by default) runs the pre-show check the moment OBS starts streaming. All good: a short note under the picture. Something off: the check window pops up with a beep. While live it also beeps once if the phone picture stops for 3 seconds. Uses OBS's websocket server only to read whether OBS is streaming. |
 | Open Taco Cam when I log in | Starts Taco Cam minimized with Windows. |
 
 The bottom bar's phone battery text turns orange (not charging, under 30%) or red (under 15%), and says when
@@ -124,6 +129,14 @@ the charger is unplugged.
 With a free Apple ID the iPhone app stops opening 7 days after you install it. The bottom bar shows
 "iPhone app good until ..." and turns orange two days before (red on the last day). Reinstall it with
 iloader (`docs/INSTALL_IPHONE.md`) to get another 7 days.
+
+### Pre-show check
+The **Pre-show check** button under the picture opens a list of everything that matters before a show, green
+when fine, orange or red when not: phone connected by USB, picture coming in, phone camera at 1080p, charger
+plugged in, phone not hot, days left on the iPhone app, the "Taco Cam" camera ready for OBS, OBS getting
+1920x1080 without a turn (the Whatnot scene turns it), and whether the card scanner is reading. It updates by
+itself while open, so you can watch lines turn green as you fix them. Tip: turn on **Do Not Disturb** on the
+iPhone during a show: a FaceTime call takes the camera away.
 
 ### Phone tab
 | Control | What it does |
@@ -153,6 +166,8 @@ damaged, Taco Cam starts with the normal settings and keeps the broken one as `s
 - **Picture is laggy or choppy**: lower Resolution or Bitrate, turn Stabilization off, use the USB cable
   instead of Wi-Fi.
 - **Phone is warm**: use **Dim** on the Phone tab, lower to 1080p/30, keep it charging and out of the sun.
+- **"Another app on the iPhone took the camera"**: FaceTime or another camera app is using it. Close that app
+  and open Taco Cam again. Do Not Disturb during shows prevents it.
 - **Taco Cam says it is already running**: look for its window in the taskbar.
 - **The window won't open at all**: double-click `Taco Cam (console).bat` to see the error, and check
   `taco-cam.log`. A message about packages means step 1 of the setup needs to be run.

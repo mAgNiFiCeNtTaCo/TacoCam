@@ -20,7 +20,9 @@ explain in plain words and finish jobs end to end.
 - `pc/tacocam/clips.py` (save-the-hit MP4s), `framefeed.py` (scanner feed, shared memory TacoCamFeed2),
   `shortcuts.py` (Desktop/Start menu/Startup .lnk with the AppUserModelID).
 - `pc/tacocam/presets.py` (camera presets), `hotkeys.py` (global Ctrl+Alt+1..9), `obsfollow.py` + `obsws.py`
-  (read-only: which OBS scene is live; obsws copied from the Whatnot project).
+  (read-only: which OBS scene is live and whether OBS streams; obsws copied from the Whatnot project).
+- `pc/tacocam/precheck.py`: the pre-show check (pure function over get_status + settings); `app.py` shows it in
+  a window from its button or when OBS starts streaming (`pc.check_on_live`) and beeps if the picture stops live.
 - `pc/tools/fake_phone.py`: test iPhone on 127.0.0.1:47777. `pc/vcam/`: Unity Capture DLLs + admin install scripts.
 - `dist/TacoCam.ipa` (gitignored), `settings.json` (gitignored, written by the window), `taco-cam.log`.
 
@@ -44,7 +46,8 @@ explain in plain words and finish jobs end to end.
 
 ## Gotchas
 - The Whatnot scanner is tuned for 1080p: keep the phone at 1080p (it shrinks 4K, which found no cards).
-- Tests must never use the real feed name: conftest sets TACOCAM_FEED_NAME per test run.
+- Tests must never use the real feed name: conftest sets TACOCAM_FEED_NAME per test run. Windows made by tests
+  must never talk to the real OBS: conftest swaps app.ObsFollower for QuietObs.
 - The iPhone back camera is a virtual device (Dual Wide / Triple): no lens position, custom ISO/shutter,
   custom white-balance gains or anti-flicker. "manual" there means hold (CONTRACT section 5 caps flags).
 - The `gh` token needs the `workflow` scope to push `.github/workflows/*`.

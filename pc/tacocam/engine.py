@@ -26,7 +26,7 @@ from .framefeed import FEED_NAME, FeedWriter
 
 DEFAULT_SETTINGS = {
     "phone": {
-        "camera": "back", "zoom": 1.0, "resolution": "1080p", "fps": 30, "codec": "h264", "bitrate_mbps": 16,
+        "camera": "back", "zoom": 1.0, "zoom_glide_s": 0.5, "resolution": "1080p", "fps": 30, "codec": "h264", "bitrate_mbps": 16,
         "focus": {"mode": "auto", "position": 0.5},
         "exposure": {"mode": "auto", "bias": 0.0, "iso": None, "shutter_s": None},
         "white_balance": {"mode": "auto", "temperature": 5000, "tint": 0},

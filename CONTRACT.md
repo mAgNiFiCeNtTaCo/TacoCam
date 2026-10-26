@@ -87,6 +87,10 @@ the PC must turn the frame so the scene is upright for how the phone is held rig
 {
   "camera": "back",                 // "back" | "front"
   "zoom": 1.0,                      // DISPLAYED zoom like the Camera app: 0.5 = ultra-wide, 1 = main, 2/3/5 = tele/crop
+  "zoom_glide_s": 0.5,              // (added 2026-10-26) seconds a zoom change takes, 0..3 (0 = jump; phone default 0).
+                                    // The phone ramps there (rate = log2(to/from) / seconds); a camera switch or a camera
+                                    // that isn't running jumps. Holds (manual focus/exposure/white balance on the combined
+                                    // back camera) start once the glide has ended.
   "resolution": "1080p",            // "720p" (1280x720) | "1080p" (1920x1080) | "4k" (3840x2160)
   "fps": 30,                        // 24 | 25 | 30 | 60 (phone clamps to what the active device/format supports)
   "codec": "h264",                  // "h264" | "hevc"
@@ -139,6 +143,8 @@ The lens switch-over itself is automatic (virtual device). Front camera: min dis
   "battery": 0.82, "charging": true,
   "thermal": "nominal",             // "nominal" | "fair" | "serious" | "critical" (phone lowers fps itself at serious+ and says so in LOG)
   "app_active": true,               // false right before iOS sends the app to the background (camera stops)
+  "interrupted": null,              // (added 2026-10-26) why iOS paused the camera: "background" | "other_app" (FaceTime,
+                                    // another camera app) | "split_screen" | "too_hot" | "other"; null while it runs
   "error": null,                    // text when the camera could not start / a setting failed
   "live": {"lens_position": 0.42, "iso": 200.0, "shutter_s": 0.016667, "temperature": 4650, "tint": 4},
                                     // (added 2026-10-25) what the camera really uses right now, also in auto modes;
@@ -171,7 +177,9 @@ Settings file: `D:\ClaudeProjects\Webcam\settings.json` (gitignored), written by
     "fit": "crop",                  // "crop" (fill, cut edges) | "fit" (black bars) | "stretch"
     "fps_out": 30,                  // virtual camera frame rate (repeats the last frame if the phone is slower)
     "vcam_name": "Taco Cam",
-    "when_disconnected": "card"     // "card" (a "Taco Cam: waiting for iPhone" picture) | "last" (freeze last frame) | "black"
+    "when_disconnected": "card",    // "card" (a "Taco Cam: waiting for iPhone" picture) | "last" (freeze last frame) | "black"
+    "check_on_live": true           // (added 2026-10-26) run the pre-show check (precheck.py) when OBS starts streaming;
+                                    // beep if the picture stops while live (OBS websocket, read-only GetStreamStatus)
   }
 }
 ```

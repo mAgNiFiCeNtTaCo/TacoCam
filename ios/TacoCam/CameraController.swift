@@ -55,6 +55,8 @@ struct CameraApplied {
     var front: CameraCaps
     var device: AVCaptureDevice?
     var error: String?
+    /// > 0 when this apply started a zoom glide of that many seconds (holds wait until it is done).
+    var glideSeconds: Double = 0
 
     var current: CameraCaps { return settings.camera == "front" ? front : back }
 }
@@ -79,11 +81,15 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     /// Anti-flicker: fixed flicker-safe shutter, ISO steered by the meter (session queue only).
     private var flickerDuration: CMTime?
     private var flickerTimer: DispatchSourceTimer?
+    /// videoZoomFactor the running zoom glide heads for (session queue only).
+    private var rampTarget: CGFloat?
 
     /// Called on the video queue for every frame.
     var onSampleBuffer: ((CMSampleBuffer) -> Void)?
     /// Called on the session queue (runtime errors, interruptions).
     var onEvent: ((String) -> Void)?
+    /// Why the camera is paused (STATE `interrupted`), nil once it runs again. Any thread.
+    var onInterruption: ((String?) -> Void)?
 
     // Raw names: the Swift spellings of these constants differ between SDK versions.
     override init() {
@@ -94,6 +100,9 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         NotificationCenter.default.addObserver(self, selector: #selector(interrupted(_:)),
                                                name: Notification.Name("AVCaptureSessionWasInterruptedNotification"),
                                                object: session)
+        NotificationCenter.default.addObserver(self, selector: #selector(interruptionEnded(_:)),
+                                               name: Notification.Name("AVCaptureSessionInterruptionEndedNotification"),
+                                               object: session)
     }
 
     @objc private func runtimeError(_ n: Notification) {
@@ -103,17 +112,25 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
 
     @objc private func interrupted(_ n: Notification) {
         var why = "unknown"
+        var key = "other"
         if let raw = n.userInfo?["AVCaptureSessionInterruptionReasonKey"] as? Int,
            let reason = AVCaptureSession.InterruptionReason(rawValue: raw) {
             switch reason {
-            case .videoDeviceNotAvailableInBackground: why = "app in background"
-            case .audioDeviceInUseByAnotherClient, .videoDeviceInUseByAnotherClient: why = "camera used by another app"
-            case .videoDeviceNotAvailableWithMultipleForegroundApps: why = "split screen"
-            case .videoDeviceNotAvailableDueToSystemPressure: why = "phone too hot"
+            case .videoDeviceNotAvailableInBackground: why = "app in background"; key = "background"
+            case .audioDeviceInUseByAnotherClient, .videoDeviceInUseByAnotherClient:
+                why = "camera used by another app"; key = "other_app"
+            case .videoDeviceNotAvailableWithMultipleForegroundApps: why = "split screen"; key = "split_screen"
+            case .videoDeviceNotAvailableDueToSystemPressure: why = "phone too hot"; key = "too_hot"
             @unknown default: why = "reason \(raw)"
             }
         }
         onEvent?("Camera interrupted: \(why)")
+        onInterruption?(key)
+    }
+
+    @objc private func interruptionEnded(_ n: Notification) {
+        onEvent?("Camera running again")
+        onInterruption?(nil)
     }
 
     // MARK: devices
@@ -386,6 +403,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                                  error: "No camera found (or camera access not allowed)")
         }
         eff.camera = useFront ? "front" : "back"
+        let freshDevice = device?.uniqueID != d.uniqueID
 
         // 2. Format + fps.
         let wantFps = min(want.fps, fpsCap)
@@ -418,11 +436,14 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
 
         // 3. Live parameters.
         var flicker: CMTime? = nil
+        var glide = 0.0
         do {
             try d.lockForConfiguration()
             applyFrameRate(d, fps: eff.fps)
 
-            // Zoom (displayed units).
+            // Zoom (displayed units). With zoom_glide_s the change glides: the ramp rate is in powers of 2
+            // per second, so log2(to / from) / seconds makes the whole move take that long. A camera that
+            // just changed or isn't running jumps.
             let m = CameraController.zoomMultiplier(d)
             let zr = CameraController.zoomRange(d, front: useFront)
             let disp = PhoneSettings.clamp(want.zoom, zr.min, zr.max)
@@ -430,10 +451,25 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             vzf = min(max(vzf, d.minAvailableVideoZoomFactor), d.maxAvailableVideoZoomFactor)
             vzf = min(max(vzf, 1.0), d.activeFormat.videoMaxZoomFactor)
             if abs(d.videoZoomFactor - vzf) > 0.001 {
-                if d.isRampingVideoZoom { d.cancelVideoZoomRamp() }
-                d.videoZoomFactor = vzf
+                let alreadyGoing = d.isRampingVideoZoom && rampTarget.map { abs($0 - vzf) < 0.001 } == true
+                if !alreadyGoing {
+                    let from = Double(d.videoZoomFactor)
+                    let rate = from > 0 && want.zoomGlide > 0 ? abs(log2(Double(vzf) / from)) / want.zoomGlide : 0
+                    if want.zoomGlide >= 0.05 && !freshDevice && session.isRunning && rate.isFinite && rate > 0.01 {
+                        d.ramp(toVideoZoomFactor: vzf, withRate: Float(rate))
+                        rampTarget = vzf
+                        glide = want.zoomGlide
+                    } else {
+                        if d.isRampingVideoZoom { d.cancelVideoZoomRamp() }
+                        d.videoZoomFactor = vzf
+                        rampTarget = nil
+                    }
+                }
             }
             eff.zoom = CameraController.round2(Double(vzf) * m)
+            // Holds (focus once, freeze brightness / colors) wait until the glide has ended: started halfway
+            // they would lock on the lens the glide is leaving. AppModel applies again when it is done.
+            let gliding = glide > 0 || d.isRampingVideoZoom
 
             // Focus.
             if want.focusMode == "manual" && d.isLockingFocusWithCustomLensPositionSupported
@@ -447,7 +483,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             } else if want.focusMode == "manual" && (d.isFocusModeSupported(.autoFocus) || d.isFocusModeSupported(.locked)) {
                 // The combined back camera (0.5x-1x) can't take a lens position: focus once on the middle of
                 // the picture, then hold it there (autoFocus locks by itself when done).
-                if d.focusMode == .continuousAutoFocus {
+                if d.focusMode == .continuousAutoFocus && !gliding {
                     if d.isFocusPointOfInterestSupported { d.focusPointOfInterest = CGPoint(x: 0.5, y: 0.5) }
                     d.focusMode = d.isFocusModeSupported(.autoFocus) ? .autoFocus : .locked
                 }
@@ -482,7 +518,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             } else if want.exposureMode == "manual" && d.isExposureModeSupported(.locked) {
                 // Combined back camera: no ISO/shutter values, but the current brightness can be held.
                 flicker = nil
-                if d.exposureMode != .locked { d.exposureMode = .locked }
+                if d.exposureMode != .locked && !gliding { d.exposureMode = .locked }
                 eff.exposureMode = "manual"
                 eff.exposureISO = CameraController.round1(Double(d.iso))
                 eff.exposureShutter = (CMTimeGetSeconds(d.exposureDuration) * 1_000_000).rounded() / 1_000_000
@@ -536,7 +572,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                 eff.wbTint = Double(tint).rounded()
             } else if want.wbMode == "manual" && d.isWhiteBalanceModeSupported(.locked) {
                 // Combined back camera: no temperature/tint values, but the current colors can be held.
-                if d.whiteBalanceMode != .locked { d.whiteBalanceMode = .locked }
+                if d.whiteBalanceMode != .locked && !gliding { d.whiteBalanceMode = .locked }
                 eff.wbMode = "manual"
                 let tt = d.temperatureAndTintValues(for: d.deviceWhiteBalanceGains)
                 if tt.temperature.isFinite && tt.tint.isFinite {
@@ -603,7 +639,8 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         return CameraApplied(settings: eff,
                              streamWidth: Int(dims.width), streamHeight: Int(dims.height),
                              back: backCaps, front: frontCaps, device: d,
-                             error: errors.isEmpty ? nil : errors.joined(separator: "; "))
+                             error: errors.isEmpty ? nil : errors.joined(separator: "; "),
+                             glideSeconds: glide)
     }
 
     // MARK: anti-flicker (session queue)

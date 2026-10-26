@@ -224,6 +224,9 @@ def test_window_follows_obs_scene(tk_root, tmp_path):
     snap = Snap()
     app.obs = snap
     try:
+        app._background_tick()                 # Follow OBS off (the watcher only runs for the live check)
+        assert eng.updates == []
+        app.settings["pc"]["follow_obs"] = True
         app._background_tick()
         assert eng.updates[-1]["phone"]["zoom"] == 3.0
         n = len(eng.updates)

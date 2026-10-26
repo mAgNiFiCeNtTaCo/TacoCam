@@ -14,13 +14,14 @@ from tkinter import messagebox, simpledialog, ttk
 import queue
 import threading
 
+from . import precheck
 from . import presets as P
 from . import shortcuts
 from .clips import clips_folder
 from . import settings as S
 from .hotkeys import GlobalHotkeys
 from .obsfollow import ObsFollower
-from .ui_widgets import (ACCENT, BAD, BG, FG, GOOD, MUTED, WARN, Choice, Combo, Control, Slider,
+from .ui_widgets import (ACCENT, BAD, BG, FG, GOOD, MUTED, PANEL, WARN, Choice, Combo, Control, Slider,
                          Switch, Tooltip, apply_theme)
 
 ROOT_DIR = S.ROOT
@@ -31,6 +32,7 @@ LOG_PATH = ROOT_DIR / "taco-cam.log"
 
 PREVIEW_MS = 50          # ~20 fps
 STATUS_MS = 250
+LOST_ALERT_S = 3.0       # picture missing this long while OBS is live = beep
 SAVE_DELAY_MS = 600
 
 OUTPUT_CHOICES = [
@@ -72,16 +74,12 @@ def fmt_shutter(s):
 
 def describe_expiry(expires, now=None):
     """(text, color) for when the sideloaded iPhone app stops opening (STATE app_expires, ISO 8601)."""
-    if not isinstance(expires, str):
+    hours = precheck.hours_left(expires, now)
+    if hours is None:
         return "", MUTED
-    try:
-        when = datetime.fromisoformat(expires.replace("Z", "+00:00"))
-    except ValueError:
-        return "", MUTED
+    when = datetime.fromisoformat(expires.replace("Z", "+00:00"))
     if when.tzinfo is None:
         when = when.replace(tzinfo=timezone.utc)
-    now = now or datetime.now(timezone.utc)
-    hours = (when - now).total_seconds() / 3600
     local = when.astimezone().strftime("%a %b %d, %I:%M %p").replace(" 0", " ")
     if hours <= 0:
         return "The iPhone app has expired: reinstall it with iloader (it won't open until you do)", BAD
@@ -132,9 +130,10 @@ def describe_status(st, vcam_name="Taco Cam", now=None):
         out["thermal_color"] = BAD if th == "critical" else WARN
     else:
         out["thermal"], out["thermal_color"] = "", MUTED
-    problem = phone.get("error")
-    if phone and phone.get("app_active") is False:
-        problem = "Taco Cam on the phone went to the background: open it again"
+    problem, out["phone_problem_color"] = phone.get("error"), WARN
+    paused = precheck.paused_reason(phone) if phone else None
+    if paused:
+        problem, out["phone_problem_color"] = precheck.interruption_text(paused), BAD
     out["phone_problem"] = problem or ""
     out["expiry"], out["expiry_color"] = describe_expiry(phone.get("app_expires"), now)
 
@@ -241,6 +240,13 @@ class App:
         self._was_charging = None
         self._clip_thread = None
         self._clip_results = queue.Queue()
+        self._obs_live = None          # OBS streaming: True / False / None (unknown)
+        self._lost_since = None        # picture missing while live, since (monotonic)
+        self._lost_alerted = False
+        self.check_win = None
+        self._check_shown = None
+        self._check_next = 0.0
+        self._check_why = ""
         self.autostart_var = tk.BooleanVar(master=root, value=False)
         self.lock_focus = tk.BooleanVar(master=root, value=True)
         self.lock_exposure = tk.BooleanVar(master=root, value=False)
@@ -345,6 +351,10 @@ class App:
         self.clip_btn.pack(side="right")
         Tooltip(self.clip_btn, "Saves the last seconds of the camera as an MP4 in Videos\\Taco Cam clips "
                                "(Ctrl+Alt+0 from any program).")
+        self.check_btn = ttk.Button(self.preset_bar, text="Pre-show check", command=lambda: self.open_check())
+        self.check_btn.pack(side="right", padx=(0, 6))
+        Tooltip(self.check_btn, "Checks everything before you go live: phone, charger, heat, app expiry, 1080p, "
+                                "the OBS camera and the card scanner. Also runs by itself when OBS starts streaming.")
 
         zoombar = ttk.Frame(left, style="Dark.TFrame")
         zoombar.grid(row=1, column=0, sticky="ew", pady=(8, 0))
@@ -385,6 +395,8 @@ class App:
         self.stats_label.grid(row=1, column=0, columnspan=3, sticky="w")
         self.expiry_label = ttk.Label(bar, text="", style="Status.TLabel")
         self.expiry_label.grid(row=2, column=0, columnspan=3, sticky="w")
+        self.problem_label = ttk.Label(bar, text="", style="Status.TLabel", font=("Segoe UI", 10, "bold"))
+        self.problem_label.grid(row=3, column=0, columnspan=4, sticky="w")
         vc = ttk.Frame(bar, style="Dark.TFrame")
         vc.grid(row=0, column=3, rowspan=2, sticky="e")
         self.vcam_label = ttk.Label(vc, text="", style="Status.TLabel")
@@ -426,6 +438,10 @@ class App:
                   hint="HEVC looks better at the same Mbps; H.264 is the safe choice."))
         self._add(p, "phone.bitrate_mbps", Slider(p, "Bitrate", 2, 80, step=1, fmt=lambda v: f"{v:g} Mbps",
                   hint="Higher = sharper picture but more data. 16 is good for 1080p over USB."))
+        self._add(p, "phone.zoom_glide_s", Choice(p, "Zoom speed",
+                  [(0, "Instant"), (0.5, "Smooth"), (1, "Slow"), (2, "Very slow")],
+                  hint="How the zoom moves when you switch presets, click a zoom button or turn the wheel: "
+                       "Smooth glides there in half a second instead of jumping."))
         ttk.Label(p, text="Resolution and fps choices follow what the selected camera can do.",
                   style="Muted.TLabel").pack(anchor="w", pady=(12, 0))
 
@@ -702,11 +718,14 @@ class App:
         elif not pc.get("hotkeys", True) and self.hotkeys is not None:
             self.hotkeys.stop()
             self.hotkeys = None
-        if pc.get("follow_obs") and self.obs is None:
+        want_obs = bool(pc.get("follow_obs") or pc.get("check_on_live", True))
+        if want_obs and self.obs is None:
             self.obs = ObsFollower(log=self.log).start()
-        elif not pc.get("follow_obs") and self.obs is not None:
+        elif not want_obs and self.obs is not None:
             self.obs.stop()
             self.obs = None
+            self._obs_live = None
+        if not pc.get("follow_obs"):
             self._obs_scene_seen = None
         self._show_background_status()
 
@@ -718,7 +737,7 @@ class App:
         else:
             hk = "Ctrl+Alt+1..9 (presets) and Ctrl+Alt+0 (save clip) are ready"
         self.hotkey_label.configure(text=hk)
-        if self.obs is None:
+        if self.obs is None or not self.settings["pc"].get("follow_obs"):
             text = "Follow OBS is off"
         else:
             snap = snap or self.obs.snapshot()
@@ -755,12 +774,15 @@ class App:
             if list(self.scene_combo.cget("values") or ()) != snap["scenes"]:
                 self.scene_combo.configure(values=snap["scenes"])
             scene = snap["scene"]
-            if scene and scene != self._obs_scene_seen:
+            if scene and scene != self._obs_scene_seen and self.settings["pc"].get("follow_obs"):
                 self._obs_scene_seen = scene
                 i = P.for_scene(self.presets, scene)
                 if i is not None:
                     self.apply_preset(i, f'OBS scene "{scene}"')
+            self._watch_live(snap.get("streaming"))
         self._show_background_status(snap)
+        if self.check_win is not None and time.monotonic() >= self._check_next:
+            self._fill_check()
 
     def _tab_extras(self):
         p = self._page("Extras")
@@ -787,6 +809,14 @@ class App:
                   style="Muted.TLabel", wraplength=490, justify="left").pack(anchor="w")
         self.feed_label = ttk.Label(p, text="", style="Muted.TLabel")
         self.feed_label.pack(anchor="w")
+        self._head(p, "Pre-show check")
+        ttk.Label(p, text="The Pre-show check button (under the picture) lists what is ready and what isn't. Taco "
+                          "Cam also runs it when OBS starts streaming and opens it if something needs a look, and "
+                          "beeps if the phone picture stops while you are live. Uses OBS's websocket server only "
+                          "to read whether OBS is streaming.",
+                  style="Muted.TLabel", wraplength=490, justify="left").pack(anchor="w")
+        self._add(p, "pc.check_on_live", Switch(p, "When OBS goes live", "Check and warn me",
+                  hint="Run the pre-show check when OBS starts streaming; beep if the picture stops while live."))
         self._head(p, "Start automatically")
         try:
             self.autostart_var.set(shortcuts.startup_shortcut().exists())
@@ -799,6 +829,118 @@ class App:
         ttk.Label(p, text="The bottom bar turns orange when the phone is not charging and below 30%, red below 15%, "
                           "and says when the charger gets unplugged.", style="Muted.TLabel", wraplength=490,
                   justify="left").pack(anchor="w")
+
+    # ---- pre-show check
+    def run_check(self):
+        feed = getattr(self.engine, "feed_in_use", lambda: False)()
+        return precheck.run_checks(self._status, self.settings, feed_in_use=feed)
+
+    def open_check(self, why=""):
+        """Opens (or refreshes) the pre-show check window and brings it to the front."""
+        if self.check_win is None:
+            w = tk.Toplevel(self.root)
+            w.title("Taco Cam: pre-show check")
+            w.configure(bg=PANEL)
+            w.resizable(False, False)
+            w.protocol("WM_DELETE_WINDOW", self.close_check)
+            body = ttk.Frame(w, padding=(16, 12))
+            body.pack(fill="both", expand=True)
+            self._check_head = ttk.Label(body, text="", font=("Segoe UI", 13, "bold"))
+            self._check_head.pack(anchor="w")
+            self._check_why_label = ttk.Label(body, text="", style="Muted.TLabel")
+            self._check_why_label.pack(anchor="w")
+            self._check_rows = ttk.Frame(body)
+            self._check_rows.pack(fill="x", pady=(8, 10))
+            row = ttk.Frame(body)
+            row.pack(fill="x")
+            ttk.Button(row, text="Close", command=self.close_check).pack(side="right")
+            ttk.Label(row, text="Updates by itself while open.", style="Muted.TLabel").pack(side="left")
+            self.check_win = w
+            self._check_shown = None
+        self._check_why = why
+        self._fill_check()
+        w = self.check_win
+        w.deiconify()
+        w.lift()
+        w.attributes("-topmost", True)   # in front of OBS / Whatnot when it opens by itself
+        w.after(2500, lambda: w.winfo_exists() and w.attributes("-topmost", False))
+
+    def close_check(self):
+        w, self.check_win = self.check_win, None
+        if w is not None:
+            try:
+                w.destroy()
+            except tk.TclError:
+                pass
+
+    def _fill_check(self):
+        self._check_next = time.monotonic() + 1.0
+        results = self.run_check()
+        shown = (results, self._check_why)
+        if self.check_win is None or shown == self._check_shown:
+            return
+        self._check_shown = shown
+        worst, todo = precheck.worst(results), len(precheck.problems(results))
+        head, color = {precheck.OK: ("Ready to go live", GOOD),
+                       precheck.WARN: (f"Almost ready: {todo} thing{'s' if todo != 1 else ''} to look at", WARN),
+                       precheck.BAD: ("Not ready: fix the red lines", BAD)}[worst]
+        self._check_head.configure(text=head, foreground=color)
+        self._check_why_label.configure(text=self._check_why)
+        for child in self._check_rows.winfo_children():
+            child.destroy()
+        marks = {precheck.OK: ("\u2713", GOOD), precheck.INFO: ("\u2022", MUTED),
+                 precheck.WARN: ("!", WARN), precheck.BAD: ("\u2717", BAD)}
+        for i, (level, text) in enumerate(results):
+            mark, c = marks[level]
+            ttk.Label(self._check_rows, text=mark, foreground=c, font=("Segoe UI", 11, "bold"),
+                      width=2).grid(row=i, column=0, sticky="nw")
+            ttk.Label(self._check_rows, text=text, foreground=FG if level != precheck.INFO else MUTED,
+                      wraplength=520, justify="left").grid(row=i, column=1, sticky="w", pady=1)
+
+    def _beep(self):
+        try:
+            import winsound
+            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+        except Exception:
+            pass
+
+    def _watch_live(self, streaming):
+        """OBS streaming went on: run the check. While live: beep once when the phone picture stops."""
+        was, self._obs_live = self._obs_live, streaming
+        if not self.settings["pc"].get("check_on_live", True):
+            self._lost_since, self._lost_alerted = None, False
+            return
+        if was is False and streaming is True:
+            results = self.run_check()
+            todo = precheck.problems(results)
+            if todo:
+                self.log("OBS started streaming: pre-show check found " + "; ".join(t for _l, t in todo))
+                self.open_check("OBS just started streaming")
+                self._beep()
+            else:
+                self.log("OBS started streaming: pre-show check all good")
+                self.set_hint("OBS started streaming: pre-show check all good")
+        if streaming is not True:
+            self._lost_since, self._lost_alerted = None, False
+            return
+        st = self._status or {}
+        phone = st.get("phone") or {}
+        ok = st.get("link") == "connected" and (st.get("fps_in") or 0) >= 1
+        now = time.monotonic()
+        if ok:
+            if self._lost_alerted:
+                self.log("The phone picture is back")
+                self.set_hint("The phone picture is back")
+            self._lost_since, self._lost_alerted = None, False
+        elif self._lost_since is None:
+            self._lost_since = now
+        elif not self._lost_alerted and now - self._lost_since >= LOST_ALERT_S:
+            self._lost_alerted = True
+            why = precheck.interruption_text(precheck.paused_reason(phone)) or (
+                "the iPhone is not connected" if st.get("link") != "connected" else "no picture from the iPhone")
+            self.log(f"While live: the phone picture stopped ({why})")
+            self.set_hint(f"LIVE: the phone picture stopped: {why}")
+            self._beep()
 
     # ---- clips
     def _clip_rotation(self):
@@ -883,7 +1025,7 @@ class App:
         elif path == "pc.connect" and value == "wifi" and not self.settings["pc"].get("wifi_host"):
             pass  # nothing to connect to yet: the engine waits for an address
         self.apply(partial)
-        if path in ("pc.follow_obs", "pc.hotkeys"):
+        if path in ("pc.follow_obs", "pc.hotkeys", "pc.check_on_live"):
             self._sync_background()
         if path.startswith("phone."):
             self._active_preset = None
@@ -906,7 +1048,8 @@ class App:
                                                "anti_flicker")}}
         partial = S.deep_update({}, partial)
         for path, ctl in self.ctl.items():
-            if path.startswith("phone.") and path not in ("phone.zoom", "phone.camera", "phone.resolution",
+            if path.startswith("phone.") and path not in ("phone.zoom", "phone.zoom_glide_s", "phone.camera",
+                                                         "phone.resolution",
                                                          "phone.fps", "phone.codec", "phone.bitrate_mbps",
                                                          "phone.screen"):
                 v = S.get_path(S.DEFAULTS, path)
@@ -1062,10 +1205,9 @@ class App:
             self.log("The phone's charger was unplugged")
         self._was_charging = charging
         self.thermal_label.configure(text=d["thermal"], foreground=d["thermal_color"])
-        stats = d["stats"]
-        if d["phone_problem"]:
-            stats = (stats + "  |  " if stats else "") + "Phone: " + d["phone_problem"]
-        self.stats_label.configure(text=stats)
+        self.stats_label.configure(text=d["stats"])
+        self.problem_label.configure(text=("Phone: " + d["phone_problem"]) if d["phone_problem"] else "",
+                                     foreground=d["phone_problem_color"])
         self.vcam_label.configure(text=d["vcam"], foreground=d["vcam_color"])
         self.expiry_label.configure(text=d["expiry"], foreground=d["expiry_color"])
         if d["expiry_color"] != MUTED and d["expiry"] != self._expiry_logged:

@@ -132,6 +132,8 @@ ROUND_TRIPS = [
     ({"zoom": 0.5}, lambda s, st: s["zoom"] == 0.5),
     ({"zoom": 3.0}, lambda s, st: s["zoom"] == 3.0),
     ({"zoom": 100}, lambda s, st: s["zoom"] == 15.0),                      # clamped to max_zoom
+    ({"zoom_glide_s": 1}, lambda s, st: s["zoom_glide_s"] == 1),
+    ({"zoom_glide_s": 9}, lambda s, st: s["zoom_glide_s"] == 3),             # clamped to 3 s
     ({"resolution": "1080p"}, lambda s, st: s["resolution"] == "1080p" and st["stream"]["width"] == 1920),
     ({"fps": 60}, lambda s, st: s["fps"] == 60 and st["stream"]["fps"] == 60),
     ({"fps": 24}, lambda s, st: s["fps"] == 24),
