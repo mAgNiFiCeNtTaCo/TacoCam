@@ -4,24 +4,45 @@ Taco Cam: our own iPhone-as-USB-webcam app (what Iriun Webcam does, every featur
 zoom-out). An iPhone app sends H.264/HEVC over the USB cable; a PC window shows it and feeds OBS through a
 DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break stream.
 
-## Where it stands (2026-10-25, evening)
-- **Working end to end with the real phone** (iPhone 11, iOS 27.0.1) over USB into OBS (Whatnot scene).
-- iPhone app: GitHub Actions build (last green run 40258964830, 14 iOS tests), `dist/TacoCam.ipa` (gitignored)
-  installed with **iloader** (Sideloadly login broken since 2026-10-21, -80046). Free Apple ID: reinstall every
-  7 days; the PC window's bottom bar shows the expiry date (orange 2 days ahead).
-- PC: `Taco Cam.bat` or the Desktop / Start menu **Taco Cam** shortcuts (`pc/tools/make_shortcuts.py`); own
-  icon and taskbar entry. Tests `python -m pytest pc/tests -q` (262).
-- GitHub repo is **public** (MIT): https://github.com/mAgNiFiCeNtTaCo/TacoCam.
-- Settings in use for Whatnot: back camera, 1080p, 30 fps, H.264, 20 Mbps, stabilization off; PC output
-  1920x1080 @ 30, rotate 0 (the OBS scene turns the source 90 degrees). Presets **1 Wide Table** (0.5x,
-  colors held) and **2 Close UP** (1.6x, focus + colors held), Ctrl+Alt+1 / Ctrl+Alt+2; Follow OBS off.
-- OBS's stream output (WHIP to Whatnot/Amazon IVS, x264 veryfast/zerolatency, 3500 kbps CBR, keyframe 2 s,
-  Opus 160) is Whatnot's required setup: leave it alone.
-- Not possible on this phone's back camera: anti-flicker and exact focus/ISO/shutter/white-balance values
-  (Apple refuses them on the combined Dual Wide camera); "manual" there means hold.
-- Not yet checked on the phone: front camera, picture upright with the phone held upright (`docs/QA.md`).
+## Where it stands (2026-10-25, late)
+- **In use**: iPhone 11 (iOS 27.0.1) over USB into OBS (Whatnot scene) and into the Whatnot card scanner.
+- iPhone app: GitHub Actions build (last green run 40258964830), `dist/TacoCam.ipa` (gitignored) installed with
+  **iloader**; expires ~2026-11-01 (bottom bar shows the date, orange 2 days ahead). Sideloadly is broken (-80046).
+- PC: starts with Windows (Startup shortcut, minimized); also Desktop / Start menu shortcuts. Tests
+  `python -m pytest pc/tests -q` (284). Repo public (MIT): https://github.com/mAgNiFiCeNtTaCo/TacoCam.
+- Settings for Whatnot: back camera **1080p** (the user was asked to switch back from 4K), 30 fps, H.264,
+  20 Mbps; PC output 1920x1080 @ 30, rotate 0 (OBS turns the source 90 degrees). Presets 1 Wide Table (0.5x)
+  and 2 Close UP (1.6x, focus + colors held; exposure lock suggested), Ctrl+Alt+1/2; Ctrl+Alt+0 saves a clip
+  to Videos\Taco Cam clips.
+- Scanner feed (shared memory "TacoCamFeed2", CONTRACT section 8) feeds the Whatnot scanner, whose camera is set
+  to "Taco Cam (direct, full quality)".
+- OBS's stream output is Whatnot's required WHIP setup: leave it alone.
+- Not possible on this phone's back camera: anti-flicker, exact focus/ISO/shutter/white balance ("manual" = hold).
+- Open: front camera / upright check (`docs/QA.md`); scanner card finding on a busy background (54 failed
+  frames in Whatnot `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-10-25 (late): clips, start with Windows, battery warning, scanner feed
+- **Save-the-hit clips** (`clips.py`): ring buffer of the phone's own H.264/HEVC packets (65 s, 400 MB cap), MP4
+  without re-encoding, upright via the tkhd display matrix (bytes taken from ffmpeg's `-display_rotation`);
+  Ctrl+Alt+0 / Save button; Extras tab (15/30/60 s, turn). Live test: 30 s, 908 frames, upright. HEVC clips use
+  the "hev1" tag: PyAV 19 writes undecodable "hvc1" files from these packets (ffmpeg's own remux works).
+- **Start with Windows**: `shortcuts.py` (COM code moved from `tools/make_shortcuts.py`) makes a Startup shortcut
+  with `--minimized`; turned on for the user. **Battery warning**: orange <30% / red <15% when not charging,
+  "charger unplugged" message.
+- **Scanner feed** (`framefeed.py`, CONTRACT section 8): v1 (one slot, RGB) gave the scanner ~20 pictures/s,
+  reading in place dropped to 5/s (reads collided with writes). v2: two slots, Taco Cam stores BGR already upright,
+  readers only copy: 25 pictures/s at 4K. Tests use their own feed name (TACOCAM_FEED_NAME) so they never touch
+  the running Taco Cam's feed.
+- **4K was a mistake for the scanner**: its card finder works in pixels tuned at 1080p (DETECT_MAX effectively
+  off) and cards are read at 420x612: on tonight's failed frames it found 0/12 at 4K vs 4/12 at 1080p, 2.5x
+  slower. The scanner now shrinks to 1080p; the phone should stay at 1080p. Remaining misses: a very sparkly
+  card in front of a busy background (cases, top-loaders, packs) and the easel ledge hiding the bottom edge.
+- A bash heredoc wrote real NUL bytes into `clips.py` (rb"\x00..." became binary): fixed with a Write-tool script;
+  all later patches were script files (the shared CLAUDE.md rule).
+- Whatnot project (with the user's OK): "Taco Cam (direct, full quality)" camera, Card Scanner desktop shortcut
+  + icon; see its PROGRESS.md.
+
 ### 2026-10-25 (evening): Public repo, own icon, presets, expiry warning, back-camera holds
 - Repo made **public** with an MIT license; history rewritten first to replace the Windows user path in
   `specs/*.md` with `%APPDATA%` (old build run deleted; old commit 99059ad may stay reachable by SHA).

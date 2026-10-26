@@ -111,6 +111,33 @@
         "AVFoundation virtual cameras (Dual Wide / Triple) refuse lens position, custom exposure and custom white-balance gains: check before promising manual controls",
         "Tk on Windows: iconbitmap plus iconphoto gives a blank icon; set an AppUserModelID or pythonw apps share one taskbar button"
       ]
+    },
+    {
+      "title": "Clips, start with Windows, battery warning, scanner feed",
+      "date": "2026-10-25",
+      "summary": "One session added save-the-hit clips, start with Windows and a battery warning, then fed the Whatnot card scanner straight from Taco Cam and found 4K hurt its card finding.",
+      "stages": [
+        {
+          "name": "Solo session",
+          "kind": "solo",
+          "sessions": [
+            {
+              "id": "24137721",
+              "role": "Follow-up session (continued)",
+              "start": "2026-10-25T21:40",
+              "end": "2026-10-25T23:15",
+              "did": "clips.py, shortcuts.py, battery warning, framefeed v1->v2, Whatnot TacoCamSource + 1080p fix, Card Scanner shortcut",
+              "outcome": "done",
+              "files": 20
+            }
+          ]
+        }
+      ],
+      "lessons": [
+        "Measure what the consumer actually uses before upgrading the source: the scanner reads cards at 420x612 and tunes detection at 1080p, so 4K only hurt",
+        "Shared-memory frames: double-buffer and do the conversion on the writer, or readers collide with writes",
+        "Never write binary-looking escapes through bash heredocs: they became real NUL bytes"
+      ]
     }
   ]
 }
