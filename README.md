@@ -126,3 +126,8 @@ damaged, Taco Cam starts with the normal settings and keeps the broken one as `s
 `pc/tacocam/` is the PC program (`app.py` is this window, `engine.py` does the connection, decoding and
 virtual camera). `ios/` is the iPhone app. `CONTRACT.md` describes how they talk to each other. Tests:
 `python -m pytest pc/tests -q`.
+
+## License
+
+MIT (see `LICENSE`). The virtual camera files in `pc/vcam/` are the Unity Capture DirectShow filter by
+Bernhard Schelling, also MIT: see `pc/vcam/LICENSE-UnityCapture.txt`.
