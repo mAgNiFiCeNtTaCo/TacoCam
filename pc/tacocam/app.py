@@ -66,6 +66,24 @@ def fmt_zoom(v):
     return f"{v:.1f}x" if v < 10 else f"{v:.0f}x"
 
 
+def turn_image(img, turn):
+    """A PIL image turned clockwise by 0 / 90 / 180 / 270 degrees."""
+    from PIL import Image
+    how = {90: Image.Transpose.ROTATE_270, 180: Image.Transpose.ROTATE_180, 270: Image.Transpose.ROTATE_90}.get(turn)
+    return img.transpose(how) if how is not None else img
+
+
+def preview_to_output(nx, ny, turn):
+    """A point (0..1) on the picture turned clockwise by `turn` -> the same point on the unturned output."""
+    if turn == 90:
+        return ny, 1 - nx
+    if turn == 180:
+        return 1 - nx, 1 - ny
+    if turn == 270:
+        return 1 - ny, nx
+    return nx, ny
+
+
 def fmt_shutter(s):
     if s >= 0.4:
         return f"{s:.1f} s"
@@ -225,6 +243,7 @@ class App:
         self._closing = False
         self._photo = None
         self._img_box = None
+        self._img_turn = 0
         self._focus_job = None
         self._status = {}
         self._test_proc = None
@@ -496,6 +515,9 @@ class App:
         self._add(p, "pc.when_disconnected", Choice(p, "When no phone",
                   [("card", "Waiting card"), ("last", "Last frame"), ("black", "Black")],
                   hint="What OBS shows when the phone is unplugged: a card, the frozen last picture, or black."))
+        self._add(p, "pc.preview_turn", Choice(p, "Preview turn", [(0, "0"), (90, "90"), (180, "180"), (270, "270")],
+                  hint="Turns the picture in this window only; OBS keeps getting it as it is. Use 90 when your OBS "
+                       "scene turns the camera 90 degrees."))
 
     def _tab_phone(self):
         p = self._page("Phone")
@@ -1262,22 +1284,25 @@ class App:
     def draw_preview(self):
         from PIL import Image, ImageTk
         cw, ch = max(self.canvas.winfo_width(), 16), max(self.canvas.winfo_height(), 16)
-        frame = self.engine.get_preview(cw, ch)
+        turn = self.settings["pc"].get("preview_turn", 0)
+        if getattr(self.engine, "preview_is_card", lambda: False)():
+            turn = 0
+        frame = self.engine.get_preview(*((ch, cw) if turn in (90, 270) else (cw, ch)))
         if frame is None:
             self._img_box = None
             self.canvas.delete("frame")
             self.canvas.itemconfigure(self._placeholder, state="normal",
                                       text=self.last_status_text.get("conn") or "Waiting for the iPhone...")
             return
-        h, w = frame.shape[:2]
-        img = Image.fromarray(frame)
+        img = turn_image(Image.fromarray(frame), turn)
+        w, h = img.size
         if w > cw or h > ch:  # engine should scale, but never overflow the canvas
             s = min(cw / w, ch / h)
             w, h = max(1, int(w * s)), max(1, int(h * s))
             img = img.resize((w, h))
         self._photo = ImageTk.PhotoImage(img)
         x0, y0 = (cw - w) // 2, (ch - h) // 2
-        self._img_box = (x0, y0, w, h)
+        self._img_box, self._img_turn = (x0, y0, w, h), turn
         self.canvas.itemconfigure(self._placeholder, state="hidden")
         self.canvas.delete("frame")
         self.canvas.create_image(x0, y0, image=self._photo, anchor="nw", tags="frame")
@@ -1291,7 +1316,7 @@ class App:
         x0, y0, w, h = box
         if not (x0 <= e.x < x0 + w and y0 <= e.y < y0 + h):
             return
-        self.tap_focus((e.x - x0) / w, (e.y - y0) / h, (e.x, e.y))
+        self.tap_focus(*preview_to_output((e.x - x0) / w, (e.y - y0) / h, self._img_turn), (e.x, e.y))
 
     def tap_focus(self, nx, ny, at=None):
         try:

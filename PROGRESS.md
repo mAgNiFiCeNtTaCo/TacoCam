@@ -4,12 +4,13 @@ Taco Cam: our own iPhone-as-USB-webcam app (what Iriun Webcam does, every featur
 zoom-out). An iPhone app sends H.264/HEVC over the USB cable; a PC window shows it and feeds OBS through a
 DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break stream.
 
-## Where it stands (2026-10-26)
+## Where it stands (2026-11-08)
 - **In use**: iPhone 11 (iOS 27.0.1) over USB into OBS (Whatnot scene) and into the Whatnot card scanner.
 - iPhone app: GitHub Actions build (last green run 40258964830), `dist/TacoCam.ipa` (gitignored) installed with
-  **iloader**; expires ~2026-11-01 (bottom bar shows the date, orange 2 days ahead). Sideloadly is broken (-80046).
+  **iloader**; reinstalled 2026-11-08, so 7 days runs to ~2026-11-15 (bottom bar shows the date, orange 2 days
+  ahead). Sideloadly is broken (-80046).
 - PC: starts with Windows (Startup shortcut, minimized); also Desktop / Start menu shortcuts. Tests
-  `python -m pytest pc/tests -q` (284). Repo public (MIT): https://github.com/mAgNiFiCeNtTaCo/TacoCam.
+  `python -m pytest pc/tests -q` (303). Repo public (MIT): https://github.com/mAgNiFiCeNtTaCo/TacoCam.
 - Settings for Whatnot: back camera **1080p** (the user was asked to switch back from 4K), 30 fps, H.264,
   20 Mbps; PC output 1920x1080 @ 30, rotate 0 (OBS turns the source 90 degrees). Presets 1 Wide Table (0.5x)
   and 2 Close UP (1.6x, focus + colors held; exposure lock suggested), Ctrl+Alt+1/2; Ctrl+Alt+0 saves a clip
@@ -20,12 +21,36 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
 - Not possible on this phone's back camera: anti-flicker, exact focus/ISO/shutter/white balance ("manual" = hold).
 - 2026-10-26: smooth zoom (Zoom speed, default 0.5 s), Pre-show check button + check when OBS goes live (beep
   if the picture stops while live), red status line naming why the phone camera paused. iPhone build 40406780074
-  in `dist/TacoCam.ipa`, **not yet installed**; window not yet restarted. Tests: 295.
-- Open: install the new IPA + restart the window, test glide / pause reasons on the real phone; front camera /
+  in `dist/TacoCam.ipa`.
+- 2026-11-08: Preview turn (Output tab) stands the picture upright in the window only; set to 90, window restarted
+  on the new code. OBS still gets 1920x1080 rotate 0.
+- Open: confirm the turned preview by eye; test glide / pause reasons on the real phone; front camera /
   upright check (`docs/QA.md`); scanner card finding on a busy background (54 failed frames in Whatnot
   `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-11-08: Preview turn (window only)
+- **Asked for**: the picture upright in the Taco Cam window without changing what OBS gets.
+- **New setting `pc.preview_turn`** (0 | 90 | 180 | 270 clockwise, default 0; Output (OBS) tab "Preview turn"). The turn
+  happens only in `App.draw_preview` (`turn_image`), so the 1920x1080 rotate-0 output, clips and the scanner feed are
+  untouched. Value for this setup is 90: the saved OBS scenes (Whatnot_2, Whatnot_New; scene "Live") hold the Taco Cam
+  source at rot 90.0.
+- Click-to-focus on a turned picture is mapped back to the output (`preview_to_output`, `_img_turn`). The "waiting" card
+  isn't turned, so its text stays readable (`Engine.preview_is_card`).
+- Decided against: an "auto" turn from the phone's orientation hint. OBS's turn is a fixed 90, and the hint would be
+  wrong for an overhead or flat phone mount.
+- Tests: 303 pass (8 new: turn direction, click mapping at each turn, window-only update, card flag on the engine, plus the
+  control round trip). `/slop-check Webcam diff`: 1 phrase fixed in the README row ("as before"), 3 CODE-001 false alarms
+  on older code (`AI_SlopAgent/reports/2026-11-08-Webcam.md`).
+- Window restarted on the new code at 19:39 on 2026-11-08 (not by this session) and `settings.json` holds
+  `preview_turn` 90, rotate 0, output 1920x1080. Not yet confirmed by eye with the real phone picture.
+- iPhone: the user reinstalled the expired app on 2026-11-08 and got iOS's "Untrusted Developer" alert; the fix is
+  Settings > General > VPN & Device Management > Trust. Not checked which build went on the phone.
+- Resources 2026-11-08 21:15 (OBS closed): Webcam 2 processes, CPU 181% of a core (5.7% of the PC), RAM 243 MB, GPU 0%,
+  disk 4 MB; whole PC CPU 22% of 32 threads, RAM 38.8 of 64 GB.
+- Open: confirm the turned preview looks right and click-to-focus lands where clicked; glide and pause reasons on the real
+  phone if the new IPA is the one installed.
+
 ### 2026-10-26: Smooth zoom, pre-show check, phone pause reasons
 - **Smooth zoom** (iPhone + PC): new phone setting `zoom_glide_s` (0..3 s, PC default 0.5, Camera tab "Zoom speed":
   Instant / Smooth / Slow / Very slow). The phone ramps with `ramp(toVideoZoomFactor:withRate:)`, rate =

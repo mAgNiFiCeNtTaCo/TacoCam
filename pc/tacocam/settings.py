@@ -49,6 +49,7 @@ DEFAULTS = {
         "clip_seconds": 30,
         "clip_rotate": "auto",
         "check_on_live": True,
+        "preview_turn": 0,
     },
     "presets": [],
 }
@@ -73,6 +74,7 @@ ENUMS = {
     "pc.when_disconnected": {"card", "last", "black"},
     "pc.clip_seconds": {15, 30, 60},
     "pc.clip_rotate": {"auto", 0, 90, 180, 270},
+    "pc.preview_turn": {0, 90, 180, 270},
 }
 
 RANGES = {

@@ -106,6 +106,7 @@ class Engine:
         self._out_thread = None
         self._phone_state = None
         self._latest_out = None
+        self._latest_is_card = False
         self._last_transform = None
         self._vcam = None
         self._vcam_status = "stopped"
@@ -252,6 +253,10 @@ class Engine:
         if frame is None:
             return None
         return pipeline.scale_to_fit(frame, max(1, int(max_w)), max(1, int(max_h)))
+
+    def preview_is_card(self):
+        """True while the output is the "waiting" card (its text must stay readable in the preview)."""
+        return self._latest_is_card
 
     def tap_focus(self, x, y):
         """x, y 0..1 on the OUTPUT frame -> FOCUS_POINT in sensor coordinates. Returns (sx, sy) or None."""
@@ -487,6 +492,7 @@ class Engine:
                                 self._last_transform = tr
                         else:
                             frame = last_video_out
+                    is_card = False
                     if frame is None:
                         if mode == "last" and last_video_out is not None and last_video_out.shape[:2] == (oh, ow):
                             frame = last_video_out
@@ -495,7 +501,9 @@ class Engine:
                         else:
                             kind, fields = self._card_kind()
                             frame = pipeline.make_card(ow, oh, kind, **fields)
+                            is_card = True
                     self._latest_out = frame
+                    self._latest_is_card = is_card
 
                     cam = self._vcam
                     if cam is not None:

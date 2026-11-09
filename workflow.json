@@ -163,6 +163,31 @@
       "lessons": [
         "Commit messages from PowerShell: write them to a file and use git commit -F <file> (piping a here-string to -F - failed)."
       ]
+    },
+    {
+      "title": "Preview turn (window only)",
+      "date": "2026-11-08",
+      "summary": "One session added a setting that stands the picture upright in the Taco Cam window while OBS keeps getting the same output.",
+      "stages": [
+        {
+          "name": "Solo session",
+          "kind": "solo",
+          "sessions": [
+            {
+              "id": "d8f52793",
+              "role": "Session (continued)",
+              "start": "2026-11-08T19:27",
+              "end": "2026-11-08T21:15",
+              "did": "pc.preview_turn with click-to-focus mapped back and the waiting card left unturned; 303 tests; slop check of the diff",
+              "outcome": "done",
+              "files": 7
+            }
+          ]
+        }
+      ],
+      "lessons": [
+        "A fixed turn matched OBS's fixed 90 degrees; following the phone's orientation would be wrong for an overhead mount"
+      ]
     }
   ]
 }

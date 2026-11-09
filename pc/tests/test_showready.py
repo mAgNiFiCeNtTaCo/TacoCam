@@ -228,6 +228,13 @@ def test_beeps_when_the_picture_stops_while_live(tk_root, tmp_path, monkeypatch)
 
 # ---- with the test phone
 
+def test_engine_says_when_the_output_is_the_card(engine, phone):
+    assert wait_until(engine.preview_is_card)
+    assert wait_until(lambda: connected_with_video(engine) and not engine.preview_is_card())
+    phone.set_app_active(False)
+    assert wait_until(engine.preview_is_card)
+
+
 def test_zoom_speed_and_pause_reach_the_engine(engine, phone):
     assert wait_until(lambda: connected_with_video(engine))
     engine.update_settings({"phone": {"zoom_glide_s": 1}})

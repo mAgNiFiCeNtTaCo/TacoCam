@@ -40,7 +40,8 @@ explain in plain words and finish jobs end to end.
 - The window saves `settings.json` on close: close it (WM_CLOSE) before editing the file, then reopen. Ask before
   restarting it (OBS may be live).
 - Only one PC client at a time: connecting a probe to the phone kicks the window's connection.
-- Keep the PC output at 1920x1080, rotate 0: the OBS scene rotates the source 90 degrees itself.
+- Keep the PC output at 1920x1080, rotate 0: the OBS scene rotates the source 90 degrees itself. To stand the picture
+  up in the window, use `pc.preview_turn` (90 here): it turns the window's picture only.
 - The GitHub repo is PUBLIC (MIT): never commit settings.json, logs, the IPA, personal paths (use %APPDATA%)
   or names. Swift is only compiled on GitHub: read it carefully before each push.
 
@@ -53,5 +54,6 @@ explain in plain words and finish jobs end to end.
 - The `gh` token needs the `workflow` scope to push `.github/workflows/*`.
 - 4K output (2160x3840) is too slow in Python at 60 fps (~30 ms/frame); 1080p output is fine.
 - iOS stops the camera in the background: the phone app must stay open on screen (Dim mode saves battery).
-- Free Apple ID: the app stops opening after 7 days; reinstall with iloader. Developer Mode must be on.
+- Free Apple ID: the app stops opening after 7 days; reinstall with iloader. Developer Mode must be on. "Untrusted
+  Developer" after a reinstall: Settings > General > VPN & Device Management > Trust.
 - One full pytest run hit a MemoryError in Pillow's Tk image code (`test_app_real.py`); passes on rerun.

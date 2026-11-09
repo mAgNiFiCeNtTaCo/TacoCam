@@ -178,6 +178,7 @@ Settings file: `D:\ClaudeProjects\Webcam\settings.json` (gitignored), written by
     "fps_out": 30,                  // virtual camera frame rate (repeats the last frame if the phone is slower)
     "vcam_name": "Taco Cam",
     "when_disconnected": "card",    // "card" (a "Taco Cam: waiting for iPhone" picture) | "last" (freeze last frame) | "black"
+    "preview_turn": 0,              // (added 2026-11-08) clockwise turn of the picture in the Taco Cam window only: 0|90|180|270
     "check_on_live": true           // (added 2026-10-26) run the pre-show check (precheck.py) when OBS starts streaming;
                                     // beep if the picture stops while live (OBS websocket, read-only GetStreamStatus)
   }

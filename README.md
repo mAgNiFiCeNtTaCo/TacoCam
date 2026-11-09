@@ -112,6 +112,7 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 | Mirror / Flip | Turn the picture left-right / upside-down. |
 | Output fps | Frame rate OBS sees. Match OBS. |
 | When no phone | What OBS shows if the phone is unplugged: a "waiting" card, the last picture, or black. |
+| Preview turn | Turns the picture in the Taco Cam window only. It doesn't change what OBS gets. Pick 90 if your OBS scene turns the camera 90 degrees. |
 
 ### Extras tab
 | Control | What it does |

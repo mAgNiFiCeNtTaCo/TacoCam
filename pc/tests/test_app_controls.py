@@ -5,7 +5,7 @@ import pytest
 
 from conftest import pump
 from tacocam import settings as S
-from tacocam.app import acquire_single_instance, describe_status
+from tacocam.app import acquire_single_instance, describe_status, preview_to_output, turn_image
 
 # (control path, value the user picks, the partial the engine must receive)
 CASES = [
@@ -33,6 +33,7 @@ CASES = [
     ("pc.fit", "stretch", {"pc": {"fit": "stretch"}}),
     ("pc.fps_out", 60, {"pc": {"fps_out": 60}}),
     ("pc.when_disconnected", "black", {"pc": {"when_disconnected": "black"}}),
+    ("pc.preview_turn", 90, {"pc": {"preview_turn": 90}}),
 ]
 
 
@@ -239,6 +240,49 @@ def test_preview_draws_and_tap_focus(app, tk_root):
     n = len(app.engine.taps)
     app._canvas_click(e)
     assert len(app.engine.taps) == n
+    tk_root.withdraw()
+
+
+def test_turn_image_is_clockwise():
+    from PIL import Image
+    img = Image.new("L", (2, 1))
+    img.putpixel((0, 0), 200)                                     # left pixel marked
+    turned = turn_image(img, 90)
+    assert turned.size == (1, 2) and turned.getpixel((0, 0)) == 200   # left goes to the top
+    assert turn_image(img, 270).getpixel((0, 1)) == 200           # left goes to the bottom
+    assert turn_image(img, 180).getpixel((1, 0)) == 200
+    assert turn_image(img, 0) is img
+
+
+@pytest.mark.parametrize("turn", [0, 90, 180, 270])
+def test_preview_points_map_back_to_the_output(turn):
+    from PIL import Image
+    img = Image.new("L", (4, 2))
+    img.putpixel((3, 0), 200)                                     # output point (0.875, 0.25)
+    t = turn_image(img, turn)
+    px, py = next((x, y) for x in range(t.width) for y in range(t.height) if t.getpixel((x, y)) == 200)
+    assert preview_to_output((px + 0.5) / t.width, (py + 0.5) / t.height, turn) == pytest.approx((0.875, 0.25))
+
+
+def test_preview_turn_only_changes_the_window(app, tk_root):
+    tk_root.geometry("1280x800+0+0")
+    tk_root.deiconify()
+    pump(tk_root, 0.4, until=lambda: app.preview_frames > 0)
+    assert app._img_box[2] > app._img_box[3]                      # landscape output, not turned
+    app.ctl["pc.preview_turn"].select(90)
+    assert app.engine.last_update() == {"pc": {"preview_turn": 90}}   # no rotate, no output change
+    n = app.preview_frames
+    pump(tk_root, 0.4, until=lambda: app.preview_frames > n and app._img_turn == 90)
+    x0, y0, w, h = app._img_box
+    assert h > w and h <= app.canvas.winfo_height()               # standing up, fits the window
+    class E: pass
+    e = E(); e.x, e.y = x0 + w // 4, y0 + h // 8                  # top of the turned picture = left of the output
+    app._canvas_click(e)
+    assert app.engine.taps[-1] == pytest.approx((0.125, 0.75), abs=0.03)
+    app.engine.preview_is_card = lambda: True                     # the waiting card stays readable
+    n = app.preview_frames
+    pump(tk_root, 0.4, until=lambda: app.preview_frames > n and app._img_turn == 0)
+    assert app._img_turn == 0 and app._img_box[2] > app._img_box[3]
     tk_root.withdraw()
 
 
