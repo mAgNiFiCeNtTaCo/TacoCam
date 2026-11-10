@@ -35,6 +35,14 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   only over the websocket while live). `tasklist /m UnityCaptureFilter64.dll` listed opera.exe: the Whatnot tab
   was using the Taco Cam camera directly.
 - Fix (user, confirmed working): block Camera for whatnot.com in Opera and reload. No code change.
+- Checked first: Taco Cam's window (Preview turn 90) and OBS's program scene showed the same upright picture
+  (window captured with PrintWindow, OBS with GetSourceScreenshot), so the turn added 2026-11-08 is right.
+- User then asked for the border and side sprites to show on viewers' phones, with a placement slider. That is
+  Whatnot_Borders' work (its `phoneview` setting from 2026-11-10 already moves the sprites 110 px in; the frame
+  lines stay at the edge and the margin is fixed). User: "we will handle this in correct project folder".
+  Nothing changed there from this session.
+- Resources 2026-11-10 01:20 (OBS live, Whatnot Testing show): Webcam 2 processes, CPU 208% of a core (6.5% of
+  the PC), RAM 285 MB, GPU 0%; whole PC CPU 31% of 32 threads, RAM 26.2 of 64 GB, GPU 61%.
 
 ### 2026-11-08: Preview turn (window only)
 - **Asked for**: the picture upright in the Taco Cam window without changing what OBS gets.
