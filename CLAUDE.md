@@ -56,4 +56,8 @@ explain in plain words and finish jobs end to end.
 - iOS stops the camera in the background: the phone app must stay open on screen (Dim mode saves battery).
 - Free Apple ID: the app stops opening after 7 days; reinstall with iloader. Developer Mode must be on. "Untrusted
   Developer" after a reinstall: Settings > General > VPN & Device Management > Trust.
+- Whatnot's web page showed a sideways, zoomed picture with no overlays while OBS was fine: the page was
+  using the Taco Cam camera itself in the browser (Opera had the Unity Capture filter loaded; camera icon in
+  the address bar). Fix: block Camera for whatnot.com in the browser and reload; the page then shows OBS's
+  stream. Never "fix" it by turning Taco Cam's output, which would make OBS sideways.
 - One full pytest run hit a MemoryError in Pillow's Tk image code (`test_app_real.py`); passes on rerun.

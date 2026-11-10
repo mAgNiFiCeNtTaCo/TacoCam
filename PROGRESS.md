@@ -29,6 +29,13 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-11-10: Whatnot page showed the camera, not the OBS stream
+- During a Testing show the Whatnot dashboard player showed the plain sideways Taco Cam picture, center-cropped,
+  with no overlays. OBS was fine (program scene "Live" upright, sending 1080x1920 @ 60, 0 skipped frames; read
+  only over the websocket while live). `tasklist /m UnityCaptureFilter64.dll` listed opera.exe: the Whatnot tab
+  was using the Taco Cam camera directly.
+- Fix (user, confirmed working): block Camera for whatnot.com in Opera and reload. No code change.
+
 ### 2026-11-08: Preview turn (window only)
 - **Asked for**: the picture upright in the Taco Cam window without changing what OBS gets.
 - **New setting `pc.preview_turn`** (0 | 90 | 180 | 270 clockwise, default 0; Output (OBS) tab "Preview turn"). The turn
