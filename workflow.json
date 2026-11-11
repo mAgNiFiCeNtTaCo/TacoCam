@@ -214,6 +214,47 @@
         "Pasted pictures can fail to reach the session: capture the windows (PrintWindow, OBS GetSourceScreenshot) instead of guessing",
         "A picture with no overlays isn't from OBS: look for another program using the camera before changing the turn"
       ]
+    },
+    {
+      "title": "USB only by default, Wi-Fi with a pairing code (security fix)",
+      "date": "2026-11-11",
+      "summary": "A Security_Agent_Audit session fixed the 2026-10-28 audit's findings (phone lets in only USB, Wi-Fi needs a pairing code, checked camera install) and shipped a green iPhone build; the Webcam session logged it.",
+      "stages": [
+        {
+          "name": "Security fix",
+          "kind": "fix",
+          "note": "run from the Security_Agent_Audit folder",
+          "sessions": [
+            {
+              "id": "1b98f3aa",
+              "role": "Security fix round (lead)",
+              "start": "2026-11-11T06:59",
+              "end": "2026-11-11T16:04",
+              "did": "Pairing code + USB-only phone, no push-out of a connected PC, checked camera install, pinned CI; slop check; pushed a13b7a6, run 43106745840 green",
+              "outcome": "done",
+              "files": 23
+            }
+          ]
+        },
+        {
+          "name": "Log",
+          "kind": "solo",
+          "sessions": [
+            {
+              "id": "d8f52793",
+              "role": "Webcam session (save)",
+              "start": "2026-11-11T16:17",
+              "end": "2026-11-11T16:21",
+              "did": "Read the commit and the audit log, ran the PC tests (317 pass (2026-11-11)), wrote the log, card and CLAUDE.md",
+              "outcome": "done",
+              "files": 5
+            }
+          ]
+        }
+      ],
+      "lessons": [
+        "Work done in a project from another project's folder leaves its log and card stale: the next save in the project logs it"
+      ]
     }
   ]
 }

@@ -4,7 +4,7 @@ Taco Cam: our own iPhone-as-USB-webcam app (what Iriun Webcam does, every featur
 zoom-out). An iPhone app sends H.264/HEVC over the USB cable; a PC window shows it and feeds OBS through a
 DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break stream.
 
-## Where it stands (2026-11-08)
+## Where it stands (2026-11-11)
 - **In use**: iPhone 11 (iOS 27.0.1) over USB into OBS (Whatnot scene) and into the Whatnot card scanner.
 - iPhone app: GitHub Actions build (last green run 40258964830), `dist/TacoCam.ipa` (gitignored) installed with
   **iloader**; reinstalled 2026-11-08, so 7 days runs to ~2026-11-15 (bottom bar shows the date, orange 2 days
@@ -29,6 +29,30 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-11-11: USB only by default, Wi-Fi with a pairing code (security fix)
+- Done by a Security_Agent_Audit session (1b98f3aa, fix round for the 2026-10-28 audit), on the user's "do it";
+  logged here by the Webcam session. Commit a13b7a6, pushed; iPhone build GitHub run 43106745840 green (Swift
+  compiled, unit tests pass). Findings: WEBCAM-20261028-02 and -05 fixed, -01 (high) and -04 partly fixed (until seen
+  on the phone), -03 open (GitHub Support request for the old commits, the user's to send).
+- Phone (`StreamServer.swift`, `Protocol.swift`, `AppModel.swift`, `SettingsView.swift`): a connection from the phone's
+  own loopback address (the USB cable) is let in as before; anything else is refused unless Settings > Wi-Fi > "Allow
+  Wi-Fi connections" is on, and then has to prove a 16-character code shown on the phone (HMAC-SHA256 challenge both
+  ways, 5 wrong codes = 60 s wait). A connected PC is no longer pushed out by a new connection. Bonjour advertisement
+  removed (Info.plist). CONTRACT sections 1 and 2.
+- PC: Phone tab "Pairing code" box (`pc.wifi_code`); no Wi-Fi connection without a code, and the device must prove the
+  code back (`link.py`, `protocol.py`). fake_phone takes `code=` (None = USB-like) and refuses a second PC.
+- Camera install / uninstall scripts copy the two Unity Capture DLLs to Program Files, check their SHA-256 and register
+  them from there. `ios.yml` pins its actions to commit ids and XcodeGen to a checked download.
+- `/slop-check Webcam diff` (by that session): 0 scanner hits, four stale doc lines fixed.
+- New `dist/TacoCam.ipa`; the last build before this change is kept as `dist/TacoCam-old-before-2026-11-11.ipa`
+  (reinstall it if USB fails with the new one).
+- Checked by this session: PC tests 317 pass (2026-11-11).
+- Resources 2026-11-11 16:21 (OBS open, window on the 2026-11-08 code): Webcam 2 processes, CPU 184% of a core (5.7% of
+  the PC), RAM 324 MB, GPU 0%; whole PC CPU 22% of 32 threads, RAM 29.1 of 64 GB, GPU 33%.
+- Open (the user's): install the new IPA and run docs/QA.md "Who may connect" once, not right before a show (the
+  Swift was never run on a phone); restart the Taco Cam window (still running the code from 2026-11-08); run the new
+  "Install Taco Cam camera.bat" as admin with OBS closed; GitHub Support request for the old commits.
+
 ### 2026-11-10: Whatnot page showed the camera, not the OBS stream
 - During a Testing show the Whatnot dashboard player showed the plain sideways Taco Cam picture, center-cropped,
   with no overlays. OBS was fine (program scene "Live" upright, sending 1080x1920 @ 60, 0 skipped frames; read

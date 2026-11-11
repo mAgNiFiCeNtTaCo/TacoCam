@@ -23,8 +23,9 @@ explain in plain words and finish jobs end to end.
   (read-only: which OBS scene is live and whether OBS streams; obsws copied from the Whatnot project).
 - `pc/tacocam/precheck.py`: the pre-show check (pure function over get_status + settings); `app.py` shows it in
   a window from its button or when OBS starts streaming (`pc.check_on_live`) and beeps if the picture stops live.
-- `pc/tools/fake_phone.py`: test iPhone on 127.0.0.1:47777. `pc/vcam/`: Unity Capture DLLs + admin install scripts.
-- `dist/TacoCam.ipa` (gitignored), `settings.json` (gitignored, written by the window), `taco-cam.log`.
+- `pc/tools/fake_phone.py`: test iPhone on 127.0.0.1:47777 (`code=` for a phone with Wi-Fi pairing on). `pc/vcam/`:
+  Unity Capture DLLs + admin install scripts (copy to Program Files, SHA-256 check, register from there).
+- `dist/TacoCam.ipa` (gitignored; `TacoCam-old-before-2026-11-11.ipa` = last build before pairing), `settings.json` (gitignored, written by the window), `taco-cam.log`.
 
 ## Commands
 - Run: `Taco Cam.bat` (or `Taco Cam (console).bat`), or the Desktop/Start menu shortcuts made by
@@ -39,7 +40,9 @@ explain in plain words and finish jobs end to end.
   CBR 3500, keyframe 2 s, Opus). Amazon IVS drops streams with B-frames or over 8.5 Mbps.
 - The window saves `settings.json` on close: close it (WM_CLOSE) before editing the file, then reopen. Ask before
   restarting it (OBS may be live).
-- Only one PC client at a time: connecting a probe to the phone kicks the window's connection.
+- Only one PC client at a time: since 2026-11-11 a connected PC is not pushed out, so a probe is refused while the
+  window is connected (and a probe must never be left connected). Wi-Fi needs "Allow Wi-Fi connections" on the
+  phone plus the pairing code (`pc.wifi_code`); USB (loopback on the phone) needs none. CONTRACT sections 1-2.
 - Keep the PC output at 1920x1080, rotate 0: the OBS scene rotates the source 90 degrees itself. To stand the picture
   up in the window, use `pc.preview_turn` (90 here): it turns the window's picture only.
 - The GitHub repo is PUBLIC (MIT): never commit settings.json, logs, the IPA, personal paths (use %APPDATA%)
