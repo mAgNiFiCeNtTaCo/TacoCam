@@ -36,6 +36,7 @@ DEFAULTS = {
     "pc": {
         "connect": "usb",
         "wifi_host": "",
+        "wifi_code": "",
         "rotate": "auto",
         "mirror": False,
         "flip": False,

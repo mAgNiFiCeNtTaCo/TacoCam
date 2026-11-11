@@ -33,7 +33,7 @@ DEFAULT_SETTINGS = {
         "torch": 0.0, "stabilization": "off", "hdr": False, "screen": "normal", "anti_flicker": "off",
     },
     "pc": {
-        "connect": "usb", "wifi_host": "", "rotate": "auto", "mirror": False, "flip": False,
+        "connect": "usb", "wifi_host": "", "wifi_code": "", "rotate": "auto", "mirror": False, "flip": False,
         "output": "1920x1080", "fit": "crop", "fps_out": 30, "vcam_name": "Taco Cam",
         "when_disconnected": "card",
     },
@@ -145,6 +145,7 @@ class Engine:
                                     codec=self._settings["phone"].get("codec", "h264"))
             self._decoder.start()
             self._link = Link(connect=pc.get("connect", "usb"), wifi_host=pc.get("wifi_host", ""),
+                              wifi_code=pc.get("wifi_code", ""),
                               port=self.port, usbmux_address=self.usbmux_address, log=self._log,
                               on_hello=self._on_hello, on_state=self._on_state, on_video=self._on_video,
                               on_log=self._on_phone_log, on_connected=self._on_connected,
@@ -205,8 +206,8 @@ class Engine:
                 old = dict(self._settings["pc"])
                 _merge(self._settings["pc"], pc)
                 new = self._settings["pc"]
-                if old.get("connect") != new.get("connect") or old.get("wifi_host") != new.get("wifi_host"):
-                    target = (new.get("connect"), new.get("wifi_host"))
+                if any(old.get(k) != new.get(k) for k in ("connect", "wifi_host", "wifi_code")):
+                    target = (new.get("connect"), new.get("wifi_host"), new.get("wifi_code"))
                 if any(old.get(k) != new.get(k) for k in ("output", "fps_out", "vcam_name")):
                     self._vcam_reopen = True
                     self._wake.set()

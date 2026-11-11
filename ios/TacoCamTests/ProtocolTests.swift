@@ -1,4 +1,5 @@
 import XCTest
+import Network
 
 /// Framing (CONTRACT section 2) and Annex-B conversion. Protocol.swift and AnnexB.swift are compiled
 /// straight into this test bundle, so no app host or camera is needed.
@@ -94,6 +95,109 @@ final class ProtocolTests: XCTestCase {
         var r = FrameParser()
         XCTAssertNoThrow(try r.feed(Data([0x01, 0x00, 0x00, 0x00])))      // 16_777_216 is allowed
         XCTAssertEqual(r.bufferedCount, 4)
+    }
+
+    // MARK: pairing (CONTRACT section 2). The same numbers are in pc/tests/test_engine_protocol.py.
+
+    private let pairCode = "ABCDEFGHJKLMNPQR"
+    private let phoneNonce = Data((0..<16).map { UInt8($0) })
+    private let pcNonce = Data((16..<32).map { UInt8($0) })
+    private let pcProof = "5e8b76ad49eeca05d4fdb4ceafeb122a7b7f4c95dd1ccd8c3339f7086b47dd6c"
+    private let phoneProof = "1bdf32c75bc42d0c329daf2dce2053f86ba92b4f90b736e3524b9698cc834330"
+
+    func testAuthTypeNumber() {
+        XCTAssertEqual(MsgType.auth.rawValue, 0x06)
+    }
+
+    func testCodeShape() {
+        XCTAssertEqual(Pairing.alphabet.count, 32)
+        XCTAssertEqual(Set(Pairing.alphabet).count, 32)
+        XCTAssertEqual(Pairing.normalize("abcd-efgh jklm_npqr 01io"), pairCode)
+        XCTAssertEqual(Pairing.display(pairCode), "ABCD-EFGH-JKLM-NPQR")
+        let a = Pairing.newCode(), b = Pairing.newCode()
+        XCTAssertEqual(a.count, 16)
+        XCTAssertEqual(Pairing.normalize(a), a)
+        XCTAssertNotEqual(a, b)
+        XCTAssertEqual(Pairing.newNonce().count, 16)
+    }
+
+    func testHex() {
+        XCTAssertEqual(Pairing.hex(Data([0x00, 0xff, 0x10])), "00ff10")
+        XCTAssertEqual(Pairing.unhex("00fF10"), Data([0x00, 0xff, 0x10]))
+        XCTAssertNil(Pairing.unhex("0"))
+        XCTAssertNil(Pairing.unhex("zz"))
+    }
+
+    func testProofsMatchThePC() {
+        XCTAssertEqual(Pairing.hex(Pairing.proof(code: pairCode, role: "pc", phoneNonce: phoneNonce, pcNonce: pcNonce)),
+                       pcProof)
+        XCTAssertEqual(Pairing.hex(Pairing.proof(code: "abcd-efgh-jklm-npqr", role: "phone",
+                                                 phoneNonce: phoneNonce, pcNonce: pcNonce)), phoneProof)
+    }
+
+    func testOnlyTheRightProofPasses() {
+        let ok = Pairing.unhex(pcProof)!
+        XCTAssertTrue(Pairing.check(ok, code: pairCode, role: "pc", phoneNonce: phoneNonce, pcNonce: pcNonce))
+        XCTAssertFalse(Pairing.check(ok, code: pairCode, role: "phone", phoneNonce: phoneNonce, pcNonce: pcNonce))
+        XCTAssertFalse(Pairing.check(ok, code: pairCode, role: "pc", phoneNonce: pcNonce, pcNonce: phoneNonce))
+        XCTAssertFalse(Pairing.check(ok, code: "ABCDEFGHJKLMNPQS", role: "pc", phoneNonce: phoneNonce, pcNonce: pcNonce))
+        XCTAssertFalse(Pairing.check(Data(ok.dropLast()), code: pairCode, role: "pc",
+                                     phoneNonce: phoneNonce, pcNonce: pcNonce))
+        XCTAssertFalse(Pairing.check(Data(), code: pairCode, role: "pc", phoneNonce: phoneNonce, pcNonce: pcNonce))
+        // an empty or short code never passes, even with the proof that matches it
+        let empty = Pairing.proof(code: "", role: "pc", phoneNonce: phoneNonce, pcNonce: pcNonce)
+        XCTAssertFalse(Pairing.check(empty, code: "", role: "pc", phoneNonce: phoneNonce, pcNonce: pcNonce))
+        // a PC nonce of the wrong length never passes
+        XCTAssertFalse(Pairing.check(ok, code: pairCode, role: "pc", phoneNonce: phoneNonce, pcNonce: Data([1, 2])))
+    }
+
+    // MARK: who may connect (CONTRACT section 1)
+
+    func testUSBIsLoopbackAndNothingElseIs() {
+        XCTAssertTrue(Pairing.peer(.hostPort(host: .ipv4(IPv4Address("127.0.0.1")!), port: 50000)).local)
+        XCTAssertTrue(Pairing.peer(.hostPort(host: .ipv6(IPv6Address("::1")!), port: 50000)).local)
+        XCTAssertTrue(Pairing.peer(.hostPort(host: .ipv6(IPv6Address("::ffff:127.0.0.1")!), port: 50000)).local)
+        XCTAssertFalse(Pairing.peer(.hostPort(host: .ipv4(IPv4Address("192.168.1.23")!), port: 50000)).local)
+        XCTAssertFalse(Pairing.peer(.hostPort(host: .ipv4(IPv4Address("100.101.102.103")!), port: 50000)).local)
+        XCTAssertFalse(Pairing.peer(.hostPort(host: .ipv6(IPv6Address("::ffff:192.168.1.23")!), port: 50000)).local)
+        XCTAssertFalse(Pairing.peer(.hostPort(host: .ipv6(IPv6Address("fe80::1")!), port: 50000)).local)
+        XCTAssertFalse(Pairing.peer(.hostPort(host: .name("localhost", nil), port: 50000)).local)
+        XCTAssertEqual(Pairing.peer(.hostPort(host: .ipv4(IPv4Address("192.168.1.23")!), port: 50000)).host,
+                       "192.168.1.23")
+    }
+
+    func testWifiIsRefusedUnlessSwitchedOnWithACode() {
+        func d(local: Bool, wifi: Bool = false, code: Bool = false, locked: Bool = false,
+               busy: Bool = false, quiet: Bool = false) -> Pairing.Decision {
+            return Pairing.decide(local: local, wifiAllowed: wifi, codeSet: code, locked: locked, busy: busy, quiet: quiet)
+        }
+        XCTAssertEqual(d(local: true), .accept)                                  // USB always
+        XCTAssertEqual(d(local: false), .refuseWifiOff)                          // the default
+        XCTAssertEqual(d(local: false, wifi: true), .refuseWifiOff)              // on but no code yet
+        XCTAssertEqual(d(local: false, wifi: true, code: true), .accept)         // may now try to prove the code
+        XCTAssertEqual(d(local: false, wifi: true, code: true, locked: true), .refuseLocked)
+        // a connected PC is never pushed out by a newcomer
+        XCTAssertEqual(d(local: false, wifi: true, code: true, busy: true), .refuseBusy)
+        XCTAssertEqual(d(local: false, wifi: true, code: true, busy: true, quiet: true), .refuseBusy)
+        XCTAssertEqual(d(local: true, busy: true), .refuseBusy)
+        XCTAssertEqual(d(local: true, busy: true, quiet: true), .accept)         // USB replug after a dead connection
+    }
+
+    func testLockoutAfterWrongCodes() {
+        var log = WrongCodeLog()
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        for i in 0..<(Pairing.maxWrongCodes - 1) {
+            log.wrong("192.168.1.9", now: t0.addingTimeInterval(Double(i)))
+            XCTAssertFalse(log.isLocked("192.168.1.9", now: t0.addingTimeInterval(Double(i))))
+        }
+        log.wrong("192.168.1.9", now: t0.addingTimeInterval(10))
+        XCTAssertTrue(log.isLocked("192.168.1.9", now: t0.addingTimeInterval(11)))
+        XCTAssertFalse(log.isLocked("192.168.1.8", now: t0.addingTimeInterval(11)))   // other addresses are not held up
+        XCTAssertFalse(log.isLocked("192.168.1.9", now: t0.addingTimeInterval(10 + Pairing.lockoutSeconds + 1)))
+        log.wrong("192.168.1.9", now: t0.addingTimeInterval(200))                      // old tries were forgotten
+        XCTAssertFalse(log.isLocked("192.168.1.9", now: t0.addingTimeInterval(201)))
+        log.right("192.168.1.9")
+        XCTAssertFalse(log.isLocked("192.168.1.9", now: t0.addingTimeInterval(202)))
     }
 
     // MARK: Annex-B

@@ -57,9 +57,10 @@ The first time, the iPhone does not open apps from a personal Apple ID until you
 1. Open **Taco Cam** on the iPhone.
 2. When it asks for the **camera**, tap **Allow**. (Without it there is no picture.)
 3. If it asks about the **local network**, tap **Allow**. That is only for the Wi-Fi mode; the USB
-   cable works either way.
+   cable works either way. Wi-Fi is off until you switch on **Allow Wi-Fi connections** in the app's
+   Settings; the app then shows a pairing code to type into Taco Cam on the PC.
 4. Leave the cable plugged in and start **Taco Cam on the PC**. The phone says
-   "Connected: 30 fps, ..." and the PC shows the picture.
+   "Connected (USB): 30 fps, ..." and the PC shows the picture.
 
 On the phone screen:
 

@@ -21,6 +21,13 @@ final class AppModel: ObservableObject {
     @Published private(set) var thermal = "nominal"
     /// Why iOS paused the camera (STATE `interrupted`): "background" | "other_app" | "split_screen" | "too_hot" | "other".
     @Published private(set) var interruption: String?
+    /// "Allow Wi-Fi connections" (off = only the USB cable can connect) and the pairing code a Wi-Fi PC must prove.
+    @Published private(set) var wifiAllowed = false
+    @Published private(set) var wifiCode = ""
+    /// How the PC is connected: "USB" or "Wi-Fi 192.168.1.5"; nil when nothing is connected.
+    @Published private(set) var peer: String?
+    /// The last connection that was turned away (shown for a short while).
+    @Published private(set) var refusedNote: String?
     @Published var showSettings = false
 
     let camera = CameraController()
@@ -60,6 +67,32 @@ final class AppModel: ObservableObject {
         let s = PhoneSettings.load()
         desired = s
         effective = s
+        wifiCode = Pairing.normalize(UserDefaults.standard.string(forKey: AppModel.wifiCodeKey) ?? "")
+        wifiAllowed = UserDefaults.standard.bool(forKey: AppModel.wifiAllowedKey)
+            && wifiCode.count == Pairing.codeLength
+    }
+
+    // MARK: Wi-Fi switch and pairing code
+
+    private static let wifiAllowedKey = "wifiAllowed"
+    private static let wifiCodeKey = "wifiCode"
+
+    /// Turning Wi-Fi on the first time makes the pairing code. The USB cable needs neither.
+    func setWifiAllowed(_ on: Bool) {
+        if on && wifiCode.count != Pairing.codeLength {
+            wifiCode = Pairing.newCode()
+            UserDefaults.standard.set(wifiCode, forKey: AppModel.wifiCodeKey)
+        }
+        wifiAllowed = on
+        UserDefaults.standard.set(on, forKey: AppModel.wifiAllowedKey)
+        server.setWifi(allowed: wifiAllowed, code: wifiCode)
+    }
+
+    /// A new code: every PC that knew the old one has to be given the new one.
+    func newWifiCode() {
+        wifiCode = Pairing.newCode()
+        UserDefaults.standard.set(wifiCode, forKey: AppModel.wifiCodeKey)
+        server.setWifi(allowed: wifiAllowed, code: wifiCode)
     }
 
     // MARK: start-up
@@ -85,6 +118,7 @@ final class AppModel: ObservableObject {
         readBattery()
         thermalChanged()
         addresses = DeviceInfo.addresses()
+        server.setWifi(allowed: wifiAllowed, code: wifiCode)
         server.start()
         updateIdleTimer()
 
@@ -148,15 +182,24 @@ final class AppModel: ObservableObject {
         server.onKeyframeRequest = {
             encoder.requestKeyframe()
         }
-        server.onConnected = { [weak self] in
+        server.onConnected = { [weak self] via in
             guard let self = self else { return }
             self.connected = true
+            self.peer = via
             self.updateIdleTimer()
             self.updateCameraRunning()
+        }
+        server.onRefused = { [weak self] text in
+            guard let self = self else { return }
+            self.refusedNote = text
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+                if self?.refusedNote == text { self?.refusedNote = nil }
+            }
         }
         server.onDisconnected = { [weak self] in
             guard let self = self else { return }
             self.connected = false
+            self.peer = nil
             self.streaming = false
             self.videoStartPending = false
             streamFlag.set(false)
@@ -501,10 +544,11 @@ final class AppModel: ObservableObject {
         if !connected {
             return "Plug into the PC with the USB cable and open Taco Cam on the PC"
         }
+        let via = peer.map { " (\($0))" } ?? ""   // who is connected, so a stranger would be seen
         if !streaming {
-            return "Connected: starting video..."
+            return "Connected\(via): starting video..."
         }
-        return String(format: "Connected: %.0f fps, %.1f Mbps", fpsOut, mbpsOut)
+        return "Connected\(via): " + String(format: "%.0f fps, %.1f Mbps", fpsOut, mbpsOut)
     }
 
     var interruptionText: String? {

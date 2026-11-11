@@ -26,10 +26,6 @@
 	<string>Taco Cam sends the camera picture to your PC so you can use the iPhone as a webcam.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Taco Cam lets your PC connect to the iPhone over Wi-Fi (the USB cable works without this).</string>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_tacocam._tcp</string>
-	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

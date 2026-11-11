@@ -39,6 +39,10 @@ def wait_until(fn, timeout=8.0, step=0.02):
     return last
 
 
+PAIR_CODE = "TACK2345CAMS6789"            # a made-up pairing code (16 letters/digits, CONTRACT section 2)
+OTHER_CODE = "WRNG2345WRNG6789"
+
+
 def free_port():
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -348,7 +352,8 @@ def test_stop_within_2s_while_connected(engine, phone):
 
 
 def test_stop_within_2s_while_connecting_to_unreachable_host():
-    eng = Engine({"pc": {"connect": "wifi", "wifi_host": "10.255.255.1"}}, vcam_factory=vcam.null_factory)
+    eng = Engine({"pc": {"connect": "wifi", "wifi_host": "10.255.255.1", "wifi_code": PAIR_CODE}},
+                 vcam_factory=vcam.null_factory)
     eng.start()
     time.sleep(0.3)
     t0 = time.monotonic()
@@ -499,6 +504,158 @@ def test_switch_usb_to_wifi_at_runtime(phone):
         assert eng.get_status()["transport"] == "wifi"
     finally:
         eng.stop()
+
+
+# --- pairing (CONTRACT section 2): who may connect, and whom the PC believes ------------------------
+
+def _never_connected(eng, seconds=2.5):
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if eng.get_status()["link"] == "connected":
+            return False
+        time.sleep(0.02)
+    return True
+
+
+def _raw_pc(port):
+    s = socket.create_connection(("127.0.0.1", port), timeout=3)
+    s.sendall(protocol.encode_json(protocol.HELLO, protocol.PC_HELLO))
+    return s
+
+
+def _read_all(sock, seconds):
+    """Every message the other side sends until it closes the connection (or `seconds` pass)."""
+    reader, got, closed = protocol.FrameReader(), [], False
+    sock.settimeout(0.2)
+    end = time.monotonic() + seconds
+    while time.monotonic() < end and not closed:
+        try:
+            data = sock.recv(1 << 16)
+        except socket.timeout:
+            continue
+        except OSError:
+            closed = True
+            break
+        if not data:
+            closed = True
+            break
+        got += reader.feed(data)
+    return got, closed
+
+
+def test_pairing_right_code_connects():
+    p = fake_phone.FakePhone(port=0, code=PAIR_CODE).start()
+    eng = make_engine(p.port, wifi_code="tack-2345-cams-6789")      # typed with dashes and small letters
+    eng.start()
+    try:
+        assert wait_until(lambda: connected_with_video(eng))
+        assert p.auth_failures == 0 and p.sets
+    finally:
+        eng.stop()
+        p.stop()
+
+
+@pytest.mark.parametrize("typed", [OTHER_CODE, ""])
+def test_pairing_wrong_or_missing_code_gets_nothing(typed):
+    p = fake_phone.FakePhone(port=0, code=PAIR_CODE).start()
+    rec, logs = Recorder(), Logs()
+    eng = make_engine(p.port, rec, logs, wifi_code=typed)
+    eng.start()
+    try:
+        assert _never_connected(eng)
+        assert p.sets == [] and p.frames_sent == 0 and eng._decoder.decoded == 0
+        st = wait_until(lambda: (lambda s: s if s["link"] == "error" else None)(eng.get_status()))
+        assert "pairing code" in st["error"]
+        assert p.auth_failures == (1 if typed else 0), "one try, then the PC waits instead of hammering the phone"
+    finally:
+        eng.stop()
+        p.stop()
+
+
+def test_stranger_without_the_code_gets_no_picture_and_no_control():
+    """WEBCAM-20261028-01: a program that just connects and says hello is asked for the code and gets nothing."""
+    p = fake_phone.FakePhone(port=0, code=PAIR_CODE).start()
+    try:
+        s = _raw_pc(p.port)
+        s.sendall(protocol.encode_json(protocol.SET, {"torch": 1.0, "camera": "front"}))
+        s.sendall(protocol.encode(protocol.KEYFRAME))
+        got, closed = _read_all(s, fake_phone.PAIR_TIMEOUT + 2)
+        s.close()
+        assert closed, "closed when no code came in time"
+        assert [t for t, _ in got] == [protocol.AUTH]
+        assert set(protocol.decode_json(got[0][1])) == {"nonce"}
+        assert p.sets == [] and p.frames_sent == 0 and p.settings["torch"] == 0.0
+    finally:
+        p.stop()
+
+
+@pytest.mark.parametrize("with_code", [False, True])
+def test_second_connection_never_knocks_off_the_connected_pc(with_code):
+    """WEBCAM-20261028-01: before, any new connection replaced the PC's and the picture in OBS stopped."""
+    code = PAIR_CODE if with_code else None
+    p = fake_phone.FakePhone(port=0, code=code).start()
+    logs = Logs()
+    eng = make_engine(p.port, logs=logs, wifi_code=code or "")
+    eng.start()
+    try:
+        assert wait_until(lambda: connected_with_video(eng))
+        s = _raw_pc(p.port)
+        got, closed = _read_all(s, 2)
+        s.close()
+        assert closed and got == []
+        assert p.refused == 1 and p.connections == 1
+        n = eng._decoder.decoded
+        assert wait_until(lambda: eng._decoder.decoded > n + 5)
+        assert eng.get_status()["link"] == "connected"
+        assert not logs.has("iPhone disconnected")
+    finally:
+        eng.stop()
+        p.stop()
+
+
+def test_wifi_address_that_is_not_this_pc_needs_the_code(monkeypatch):
+    """WEBCAM-20261028-02: without a code the PC does not even connect to a Wi-Fi address."""
+    from tacocam import link
+    assert link.needs_pairing("192.168.1.23") and link.needs_pairing("phone.local") and link.needs_pairing("")
+    assert not link.needs_pairing("127.0.0.1") and not link.needs_pairing("::1")
+    p = fake_phone.FakePhone(port=0).start()
+    monkeypatch.setattr(link, "needs_pairing", lambda host: True)     # treat the test phone like a LAN address
+    eng = make_engine(p.port)
+    eng.start()
+    try:
+        st = wait_until(lambda: (lambda s: s if s["link"] == "error" else None)(eng.get_status()))
+        assert "pairing code" in st["error"]
+        time.sleep(1.5)
+        assert p.connections == 0
+    finally:
+        eng.stop()
+        p.stop()
+
+
+@pytest.mark.parametrize("kind", ["answers without proof", "wrong proof"])
+def test_device_that_cannot_prove_the_code_is_not_believed(monkeypatch, kind):
+    """WEBCAM-20261028-02: whatever answers at the typed address must prove the code before its name, its
+    settings or one frame of its video are used. Before, any HELLO meant "connected"."""
+    from tacocam import link
+    monkeypatch.setattr(link, "needs_pairing", lambda host: True)
+    p = fake_phone.FakePhone(port=0, code=None if kind == "answers without proof" else PAIR_CODE,
+                             device="Not Your Phone").start()
+    p.bad_proof = True
+    rec, logs = Recorder(), Logs()
+    eng = make_engine(p.port, rec, logs, wifi_code=PAIR_CODE)
+    eng.start()
+    try:
+        assert _never_connected(eng)
+        st = eng.get_status()
+        assert st["device_name"] != "Not Your Phone" and st["phone"] is None
+        assert eng._decoder.decoded == 0 and p.sets == []
+        assert wait_until(lambda: logs.has("pairing code"))
+        assert not logs.has("Connected to")
+        card = pipeline.make_card(1280, 720, "wifi", host="127.0.0.1")
+        assert wait_until(lambda: rec.cam is not None and np.array_equal(rec.cam.last, card))
+    finally:
+        eng.stop()
+        p.stop()
 
 
 def test_fake_phone_command_line():

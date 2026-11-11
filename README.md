@@ -143,7 +143,7 @@ iPhone during a show: a FaceTime call takes the camera away.
 | Control | What it does |
 |---|---|
 | Phone screen | **Dim** turns the phone screen black to save battery and heat. Touch the phone to wake it. |
-| Connect by | **USB cable** (default) or **Wi-Fi** (type the IP address the phone app shows). |
+| Connect by | **USB cable** (default) or **Wi-Fi**. The phone only listens to the USB cable unless you switch on **Allow Wi-Fi connections** in the phone app's Settings. It then shows its IP address and a **pairing code**: type both here once. Without the code nothing on the Wi-Fi can see or control the camera. |
 | Start test phone | Starts a pretend phone on this PC (address 127.0.0.1) so you can try the app without the iPhone. |
 
 ### Log tab

@@ -213,6 +213,30 @@ struct SettingsView: View {
         }
     }
 
+    private var wifiBinding: Binding<Bool> {
+        return Binding(get: { model.wifiAllowed }, set: { model.setWifiAllowed($0) })
+    }
+
+    private var wifiSection: some View {
+        Section(header: Text("Wi-Fi")) {
+            Toggle("Allow Wi-Fi connections", isOn: wifiBinding)
+            if model.wifiAllowed {
+                Text("Pairing code: \(Pairing.display(model.wifiCode))")
+                    .font(.system(.body, design: .monospaced))
+                Text("Type this code once in Taco Cam on the PC (Phone tab, Pairing code). Without it nothing can connect over Wi-Fi.")
+                    .font(.caption)
+                Text(model.addresses.isEmpty ? "No Wi-Fi address right now" : model.addresses.joined(separator: ", "))
+                    .font(.caption)
+                Button("Make a new code") {
+                    model.newWifiCode()
+                }
+            } else {
+                Text("Off: only the USB cable can connect. Nothing on the Wi-Fi can reach the camera.")
+                    .font(.caption)
+            }
+        }
+    }
+
     private var aboutSection: some View {
         Section(header: Text("About")) {
             Text("\(DeviceInfo.modelName), iOS \(UIDevice.current.systemVersion)")
@@ -221,7 +245,7 @@ struct SettingsView: View {
                 Text("This copy stops opening: \(exp.formatted(date: .abbreviated, time: .shortened)) (reinstall with iloader)")
                     .font(.caption)
             }
-            Text("USB port 47777. Wi-Fi mode: \(model.addresses.isEmpty ? "no Wi-Fi address" : model.addresses.joined(separator: ", "))")
+            Text("USB port 47777. Wi-Fi connections: \(model.wifiAllowed ? "on, with the pairing code" : "off")")
                 .font(.caption)
         }
     }
@@ -235,6 +259,7 @@ struct SettingsView: View {
                 exposureSection
                 wbSection
                 lightSection
+                wifiSection
                 aboutSection
             }
             .navigationTitle("Taco Cam settings")

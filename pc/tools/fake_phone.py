@@ -63,6 +63,8 @@ NESTED = ("focus", "exposure", "white_balance")
 
 MAX_QUEUED_FRAMES = 3
 MAX_QUEUED_BYTES = 2 * 1024 * 1024
+PAIR_TIMEOUT = 3.0     # a connection that has not proved the pairing code by then is closed
+QUIET_AFTER = 3.0      # a connected PC not heard from for this long may be replaced by a new USB connection
 
 
 # --- settings ------------------------------------------------------------------------------------
@@ -350,6 +352,10 @@ class Session:
         self.need_key = True
         self.dropped = 0
         self.last_rx = time.monotonic()
+        self.started = self.last_rx
+        self.authed = phone.code is None   # with a pairing code set, every PC must prove it first (like Wi-Fi)
+        self.challenge = None
+        self.pending_hello = None
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.reader = threading.Thread(target=self._read, name="fake-phone-reader", daemon=True)
         self.writer = threading.Thread(target=self._write, name="fake-phone-writer", daemon=True)
@@ -435,6 +441,9 @@ class Session:
                     if time.monotonic() - self.last_rx > 10.0:
                         self.phone.log("PC silent for 10 s: closing")
                         break
+                    if not self.authed and time.monotonic() - self.started > PAIR_TIMEOUT:
+                        self.phone.log("no pairing code received: closing")
+                        break
                     if self.got_hello and not self.streaming and time.monotonic() - self.hello_at > 2.0:
                         self.streaming = True
                     continue
@@ -453,8 +462,14 @@ class Session:
 
 class FakePhone:
     def __init__(self, host="127.0.0.1", port=protocol.PORT, rotation=0, device="Fake iPhone 13 Pro",
-                 settings=None, log=None, ios="18.1"):
+                 settings=None, log=None, ios="18.1", code=None):
         self.host, self.port = host, port
+        # Pairing (CONTRACT section 2): None = behave like the phone on USB (no code asked); a code = behave like
+        # the phone with Wi-Fi switched on, where every PC must prove the code before anything else.
+        self.code = protocol.pair_normalize(code) if code else None
+        self.bad_proof = False     # tests: answer the PC's proof with a wrong one (a device that is not the phone)
+        self.auth_failures = 0
+        self.refused = 0           # connections turned away because a PC was already connected
         self.rotation = int(rotation) % 360
         self.device = device
         self.ios = ios
@@ -526,6 +541,21 @@ class FakePhone:
                 continue
             except OSError:
                 break
+            with self.lock:
+                old = self.session
+                # A PC that is connected (and proved the code, when one is set) is never pushed out by a newcomer.
+                # Only a USB-like newcomer (no code asked) may take over, and only once the old one went quiet.
+                keep = (old is not None and not old.closed and old.authed
+                        and not (self.code is None and time.monotonic() - old.last_rx >= QUIET_AFTER))
+                if keep:
+                    self.refused += 1
+            if keep:
+                self.log(f"refused a second connection from {addr[0]}:{addr[1]}: a PC is already connected")
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+                continue
             sess = Session(self, sock, addr)
             with self.lock:
                 old, self.session = self.session, sess
@@ -581,6 +611,9 @@ class FakePhone:
             sess.send_json(protocol.STATE, self.state())
 
     def handle(self, sess, mtype, payload):
+        if not sess.authed:
+            self._pair(sess, mtype, payload)
+            return                       # nothing else is taken before the code is proved
         if mtype == protocol.HELLO:
             hello = protocol.decode_json(payload)
             self.log(f"PC HELLO {hello}")
@@ -616,6 +649,29 @@ class FakePhone:
             self.pings += 1
             sess.send(protocol.encode(protocol.PONG, payload))
         # anything else: ignored
+
+    def _pair(self, sess, mtype, payload):
+        """Before the code is proved: HELLO gets a challenge, AUTH is checked, everything else is dropped."""
+        if mtype == protocol.HELLO:
+            sess.pending_hello = payload
+            if sess.challenge is None:
+                sess.challenge = protocol.pair_nonce()
+                sess.send_json(protocol.AUTH, {"nonce": sess.challenge.hex()})
+        elif mtype == protocol.AUTH and sess.challenge is not None:
+            auth = protocol.decode_json(payload)
+            pc_nonce = protocol.pair_unhex(auth.get("nonce"), protocol.PAIR_NONCE_LEN)
+            mac = protocol.pair_unhex(auth.get("mac"))
+            if pc_nonce is None or not protocol.pair_check(mac, self.code, "pc", sess.challenge, pc_nonce):
+                self.auth_failures += 1
+                self.log("wrong pairing code: closing")
+                sess.close()
+                return
+            proof = protocol.pair_mac("A" * protocol.PAIR_CODE_LEN if self.bad_proof else self.code,
+                                      "phone", sess.challenge, pc_nonce)
+            sess.authed = True
+            sess.send_json(protocol.AUTH, {"mac": proof.hex()})
+            if sess.pending_hello is not None:
+                self.handle(sess, protocol.HELLO, sess.pending_hello)
 
     # -- "phone screen" controls ------------------------------------------------------------------
     def set_rotation(self, degrees):
@@ -771,11 +827,13 @@ def main(argv=None):
     ap.add_argument("--codec", choices=("h264", "hevc"), default=None, help="starting codec (the PC's SET wins)")
     ap.add_argument("--resolution", choices=tuple(RESOLUTIONS), default=None)
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--code", default=None,
+                    help="ask every PC for this pairing code first, like the real phone does over Wi-Fi (16 letters/digits)")
     args = ap.parse_args(argv)
     start = {k: v for k, v in (("codec", args.codec), ("resolution", args.resolution)) if v}
     log = (lambda s: None) if args.quiet else (lambda s: print(time.strftime("%H:%M:%S"), s, flush=True))
     try:
-        phone = FakePhone(args.host, args.port, args.rotation, args.device, start, log).start()
+        phone = FakePhone(args.host, args.port, args.rotation, args.device, start, log, code=args.code).start()
     except OSError as e:
         print(f"Cannot listen on {args.host}:{args.port}: {e} (is another fake phone running?)", flush=True)
         return 1

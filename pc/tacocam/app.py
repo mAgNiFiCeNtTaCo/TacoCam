@@ -525,9 +525,13 @@ class App:
                   hint="The phone screen goes black with a small status line. Touch the phone to wake it."))
         self._head(p, "Connection")
         self._add(p, "pc.connect", Choice(p, "Connect by", [("usb", "USB cable"), ("wifi", "Wi-Fi")],
-                  hint="USB is the most reliable. Wi-Fi needs the phone's IP address (shown in the phone app)."))
+                  hint="USB is the most reliable. Wi-Fi needs the phone's IP address and pairing code (the phone "
+                       "app shows both once Wi-Fi is switched on in its Settings)."))
         self._add(p, "pc.wifi_host", TextField(p, "Phone IP address",
                   hint="Only for Wi-Fi: the number shown on the phone, like 192.168.1.23. 127.0.0.1 = the test phone."))
+        self._add(p, "pc.wifi_code", TextField(p, "Pairing code",
+                  hint="Only for Wi-Fi: on the phone open Taco Cam > Settings > Wi-Fi, switch it on and type the "
+                       "code shown there (dashes and small letters are fine). The USB cable needs no code."))
         self._head(p, "Try without the iPhone")
         row = ttk.Frame(p)
         row.pack(fill="x", pady=3)

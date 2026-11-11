@@ -4,11 +4,16 @@ usb:  first USB iPhone that usbmuxd lists, its port 47777 (refused = status "no_
 wifi: TCP to host:47777 ("host:port" also accepted, used by tests and the fake phone on another port).
 Handshake: PC HELLO -> phone HELLO + STATE -> PC sends one SET with all phone settings -> VIDEO.
 PING every 1 s; nothing from the phone for 5 s = dead, reconnect.
+Pairing (CONTRACT section 2): over Wi-Fi the phone answers the PC's HELLO with an AUTH challenge; the PC proves the
+pairing code, the phone proves it back, and only then is its HELLO (or anything else it sends) accepted. A Wi-Fi
+address that is not this PC itself is never trusted without that proof.
 
 Callbacks (all called on the link's reader thread, keep them quick):
   on_hello(dict), on_state(dict), on_video(flags, pts_us, data, nbytes), on_log(str),
   on_connected(), on_disconnected(), get_phone_settings() -> dict (full phone settings for the first SET)
 """
+import hmac
+import ipaddress
 import queue
 import select
 import socket
@@ -21,6 +26,21 @@ from . import protocol, usbmux
 PING_INTERVAL = 1.0
 DEAD_AFTER = 5.0
 RETRY = 1.0
+PAIR_RETRY = 30.0     # after a failed pairing: wait this long (or for new settings) before trying again
+
+NEED_CODE = "Wi-Fi needs the pairing code: on the iPhone open Taco Cam > Settings > Wi-Fi, and type the code here"
+
+
+class PairingFailed(Exception):
+    """The other side did not prove the pairing code (or refused ours): drop the connection."""
+
+
+def needs_pairing(host):
+    """Wi-Fi to anything but this PC itself (the test phone on 127.0.0.1) must prove the pairing code."""
+    try:
+        return not ipaddress.ip_address((host or "").strip()).is_loopback
+    except ValueError:
+        return True
 
 
 def split_host(text, default_port=protocol.PORT):
@@ -43,10 +63,11 @@ def split_host(text, default_port=protocol.PORT):
 
 class Link:
     def __init__(self, connect="usb", wifi_host="", port=protocol.PORT, usbmux_address=None,
-                 log=None, **callbacks):
+                 log=None, wifi_code="", **callbacks):
         self._lock = threading.Lock()
         self._connect = connect
         self._wifi_host = wifi_host
+        self._wifi_code = wifi_code or ""
         self.port = port
         self.usbmux_address = usbmux_address
         self.log = log or (lambda s: None)
@@ -84,14 +105,17 @@ class Link:
             self._thread.join(timeout)
             self._thread = None
 
-    def set_target(self, connect=None, wifi_host=None):
-        """Change usb/wifi or the phone address: drops the current connection and reconnects."""
+    def set_target(self, connect=None, wifi_host=None, wifi_code=None):
+        """Change usb/wifi, the phone address or the pairing code: drops the current connection and reconnects."""
         with self._lock:
             changed = False
             if connect is not None and connect != self._connect:
                 self._connect, changed = connect, True
             if wifi_host is not None and wifi_host != self._wifi_host:
                 self._wifi_host = wifi_host
+                changed = changed or self._connect == "wifi"
+            if wifi_code is not None and wifi_code != self._wifi_code:
+                self._wifi_code = wifi_code
                 changed = changed or self._connect == "wifi"
         if changed:
             self._retarget.set()
@@ -161,13 +185,20 @@ class Link:
     def _run(self):
         while not self._stop.is_set():
             with self._lock:
-                mode, host_text = self._connect, self._wifi_host
+                mode, host_text, code = self._connect, self._wifi_host, protocol.pair_normalize(self._wifi_code)
             sock, transport, name = None, None, None
+            must_prove = False
             if mode == "wifi":
                 host, port = split_host(host_text, self.port)
                 if not host:
                     self._set_state("error", "wifi", None, "Wi-Fi mode needs the iPhone's IP address",
                                     say="Wi-Fi mode: type the iPhone's IP address (shown in the Taco Cam app)")
+                    if not self._wait(RETRY):
+                        break
+                    continue
+                must_prove = needs_pairing(host)
+                if must_prove and len(code) != protocol.PAIR_CODE_LEN:
+                    self._set_state("error", "wifi", None, NEED_CODE, say=NEED_CODE)
                     if not self._wait(RETRY):
                         break
                     continue
@@ -206,14 +237,22 @@ class Link:
                 if not self._wait(RETRY):
                     break
                 continue
-            self._session(sock, transport, name)
+            problem = self._session(sock, transport, name, code, must_prove)
             if self._stop.is_set():
                 break
-            self._wait(0.2)
+            if problem:      # pairing failed: say so and do not hammer the phone (it locks out after wrong codes)
+                self._set_state("error", transport, name, problem)
+                self._wait(PAIR_RETRY)
+            else:
+                self._wait(0.2)
         self._set_state("searching", None, None, None)
 
-    def _session(self, sock, transport, name):
+    def _session(self, sock, transport, name, code="", must_prove=False):
+        """One connection, until it ends. Returns None, or a sentence when it ended because pairing failed."""
         self._sock = sock
+        expect = None                    # the proof the phone owes us, once it has sent its challenge
+        proved = False
+        problem = None
         out = queue.Queue()
         self._set_state("connecting", transport, name, None, say=f"Connecting to the iPhone ({transport})")
         writer = threading.Thread(target=self._writer, args=(sock, out), name="tacocam-link-writer", daemon=True)
@@ -249,6 +288,31 @@ class Link:
                     break
                 last_rx = time.monotonic()
                 for mtype, payload in reader.feed(data):
+                    if mtype == protocol.AUTH:
+                        auth = protocol.decode_json(payload)
+                        if expect is None:           # the phone's challenge: prove our code, ask for its proof
+                            phone_nonce = protocol.pair_unhex(auth.get("nonce"), protocol.PAIR_NONCE_LEN)
+                            if phone_nonce is None:
+                                raise PairingFailed("the device sent a pairing question this PC does not understand")
+                            if len(code) != protocol.PAIR_CODE_LEN:
+                                raise PairingFailed(NEED_CODE)
+                            pc_nonce = protocol.pair_nonce()
+                            expect = protocol.pair_mac(code, "phone", phone_nonce, pc_nonce)
+                            out.put(protocol.encode_json(protocol.AUTH, {
+                                "nonce": pc_nonce.hex(),
+                                "mac": protocol.pair_mac(code, "pc", phone_nonce, pc_nonce).hex()}))
+                        elif not proved:             # the phone's own proof
+                            mac = protocol.pair_unhex(auth.get("mac"))
+                            if mac is None or not hmac.compare_digest(mac, expect):
+                                raise PairingFailed("the device there did not prove the pairing code: "
+                                                    "it is not your iPhone")
+                            proved = True
+                        continue
+                    if (must_prove or expect is not None) and not proved:
+                        if mtype == protocol.HELLO:
+                            raise PairingFailed("the device there answered without proving the pairing code "
+                                                "(not your iPhone, or an old Taco Cam app on it)")
+                        continue                     # nothing is taken from a device that has not proved the code
                     if mtype == protocol.VIDEO:
                         flags, pts, bitstream = protocol.decode_video(payload)
                         self._call("on_video", flags, pts, bitstream, len(payload) + 5)
@@ -280,12 +344,17 @@ class Link:
                         text = bytes(payload).decode("utf-8", "replace").strip()
                         self._call("on_log", text)
                     # other types: ignored (forward compatibility)
+        except PairingFailed as e:
+            reason = problem = str(e)
         except protocol.ProtocolError as e:
             reason = f"protocol error: {e}"
         except (OSError, ValueError) as e:  # ValueError: select() on a socket closed by stop()
             if not self._stop.is_set():
                 reason = f"connection lost ({e})"
         finally:
+            if expect is not None and not proved and problem is None and not self._retarget.is_set():
+                reason = problem = ("the iPhone did not accept the pairing code: check it against the one in "
+                                    "Taco Cam > Settings > Wi-Fi on the phone")
             self._out = None
             out.put(None)
             self._close_sock()
@@ -299,6 +368,7 @@ class Link:
                 self.log(f"iPhone disconnected: {reason}")
                 self._last_logged = None
                 self._set_state("searching", transport, None, None)
+        return problem
 
     def _send_all_settings(self, out):
         settings = self._call("get_phone_settings")

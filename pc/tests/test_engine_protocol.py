@@ -124,3 +124,48 @@ def test_video_payload():
 def test_pc_hello_matches_contract():
     assert protocol.PC_HELLO == {"proto": 1, "client": "TacoCam PC", "version": "1.0"}
     assert protocol.PORT == 47777
+
+
+# --- pairing (CONTRACT section 2). The same numbers are in ios/TacoCamTests/ProtocolTests.swift. ---
+
+PAIR_CODE = "ABCDEFGHJKLMNPQR"
+PHONE_NONCE = bytes(range(16))
+PC_NONCE = bytes(range(16, 32))
+PC_PROOF = "5e8b76ad49eeca05d4fdb4ceafeb122a7b7f4c95dd1ccd8c3339f7086b47dd6c"
+PHONE_PROOF = "1bdf32c75bc42d0c329daf2dce2053f86ba92b4f90b736e3524b9698cc834330"
+
+
+def test_pairing_type_and_code_shape():
+    assert protocol.AUTH == 0x06
+    assert len(protocol.PAIR_ALPHABET) == 32 and len(set(protocol.PAIR_ALPHABET)) == 32
+    assert not set("01IO") & set(protocol.PAIR_ALPHABET)
+    assert protocol.pair_normalize("abcd-efgh jklm_npqr 01io") == PAIR_CODE
+    assert protocol.pair_normalize(None) == ""
+    assert len(protocol.pair_nonce()) == 16 and protocol.pair_nonce() != protocol.pair_nonce()
+
+
+def test_pairing_proofs_match_the_contract():
+    import hashlib
+    import hmac
+    by_hand = hmac.new(PAIR_CODE.encode(), b"tacocam-pair-v1 pc " + PHONE_NONCE + PC_NONCE, hashlib.sha256)
+    assert protocol.pair_mac(PAIR_CODE, "pc", PHONE_NONCE, PC_NONCE).hex() == by_hand.hexdigest() == PC_PROOF
+    assert protocol.pair_mac("abcd-efgh-jklm-npqr", "phone", PHONE_NONCE, PC_NONCE).hex() == PHONE_PROOF
+
+
+def test_pairing_check_refuses_everything_but_the_right_proof():
+    ok = bytes.fromhex(PC_PROOF)
+    assert protocol.pair_check(ok, PAIR_CODE, "pc", PHONE_NONCE, PC_NONCE)
+    assert not protocol.pair_check(ok, PAIR_CODE, "phone", PHONE_NONCE, PC_NONCE)   # a proof cannot be sent back
+    assert not protocol.pair_check(ok, PAIR_CODE, "pc", PC_NONCE, PHONE_NONCE)
+    assert not protocol.pair_check(ok, "ABCDEFGHJKLMNPQS", "pc", PHONE_NONCE, PC_NONCE)
+    assert not protocol.pair_check(ok[:-1], PAIR_CODE, "pc", PHONE_NONCE, PC_NONCE)
+    assert not protocol.pair_check(None, PAIR_CODE, "pc", PHONE_NONCE, PC_NONCE)
+    assert not protocol.pair_check(protocol.pair_mac("", "pc", PHONE_NONCE, PC_NONCE), "", "pc", PHONE_NONCE, PC_NONCE)
+    assert not protocol.pair_check(protocol.pair_mac("ABCD", "pc", PHONE_NONCE, PC_NONCE), "ABCD", "pc",
+                                   PHONE_NONCE, PC_NONCE), "a short code never passes"
+
+
+def test_pairing_unhex():
+    assert protocol.pair_unhex("00ff10") == b"\x00\xff\x10"
+    assert protocol.pair_unhex("00ff10", 16) is None
+    assert protocol.pair_unhex("zz") is None and protocol.pair_unhex(None) is None and protocol.pair_unhex(12) is None

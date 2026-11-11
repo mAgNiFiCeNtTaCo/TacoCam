@@ -19,7 +19,7 @@
 | 0.5x: triple / dual-wide / dual / wide device order, displayed zoom = videoZoomFactor x multiplier | match |
 | FOCUS_POINT in sensor coordinates (unrotated, unmirrored) | match |
 | usbmuxd Connect with PortNumber byte-swapped (PC side) | match |
-| Info.plist camera + local network texts, Bonjour type | present |
+| Info.plist camera + local network texts (no Bonjour type since 2026-11-11) | present |
 | Session changes inside begin/commitConfiguration, device changes inside lockForConfiguration | yes |
 | Network listener restarted when the app returns to the foreground; UI updates on the main thread | yes |
 
@@ -56,3 +56,27 @@
 6. Set Output to **1080x1920**, then in OBS add Video Capture Device > **Taco Cam**, Resolution/FPS Type
    **Custom**, **1080x1920**.
 7. Try a few controls (focus tap, exposure, torch) and watch that the window shows the new values.
+
+## Who may connect: check on the real iPhone
+
+The phone app lets in the USB cable, and Wi-Fi only with a pairing code (CONTRACT sections 1 and 2). The
+Swift for this was written on 2026-11-11 without a compiler or a phone at hand, so do these once with the
+new build, not right before a show. Keep the old `dist/TacoCam.ipa` until
+step 1 passes: reinstalling it brings the old behaviour back.
+
+1. **USB still works.** Cable in, Taco Cam open on both. The phone should say "Connected (USB): 30 fps, ..."
+   and OBS shows the picture. If the phone instead shows "Refused a connection from ...: Wi-Fi connections
+   are off", this phone does not hand USB connections to the app the way the code expects: note the address
+   it shows and tell Claude. Until that is fixed you can switch on Allow Wi-Fi connections and type the code
+   on the PC (it is used over the cable too), or reinstall the old IPA.
+2. **Wi-Fi is refused by default.** On the PC choose Connect by Wi-Fi and type the phone's IP address
+   (iPhone Settings > Wi-Fi > the (i) next to the network), no code. The PC should say it needs the pairing
+   code and the phone should stay on "Plug into the PC...".
+3. **Wi-Fi works with the code.** Phone: Settings > Wi-Fi > Allow Wi-Fi connections. Type the code it shows
+   into the PC's Pairing code box. The phone should say "Connected (Wi-Fi 192.168...)".
+4. **A wrong code gets nothing.** Change one letter of the code on the PC: no picture, the PC log says the
+   iPhone did not accept the pairing code, the phone shows "Refused ...: wrong pairing code".
+5. **A second connection does not cut the first one off.** While the picture runs over USB, try to connect
+   from another computer over Wi-Fi with the code: it is turned away ("a PC is already connected") and the
+   picture in OBS keeps running.
+6. Switch Allow Wi-Fi connections off again if you only use the cable.

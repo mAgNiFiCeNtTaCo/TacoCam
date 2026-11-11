@@ -4,6 +4,10 @@ import CoreGraphics
 
 /// TCP 47777 server, one PC at a time (CONTRACT sections 1-2). All state lives on `queue`;
 /// callbacks marked "main" are delivered on the main queue.
+///
+/// Who gets in: the USB cable always (it arrives on the phone's own loopback address). Anything else only
+/// while "Allow Wi-Fi connections" is on, and it gets no picture, no settings and no log lines until it has
+/// proved the pairing code. A connected PC is never pushed out by a newcomer.
 final class StreamServer {
     static let port: UInt16 = 47777
     static let maxQueuedFrames = 3
@@ -13,8 +17,11 @@ final class StreamServer {
     let queue = DispatchQueue(label: "tacocam.net")
 
     // main
-    var onConnected: (() -> Void)?
+    /// A PC that may use the camera is connected: "USB" or "Wi-Fi 192.168.1.5".
+    var onConnected: ((String) -> Void)?
     var onDisconnected: (() -> Void)?
+    /// A connection was turned away (text for the phone screen).
+    var onRefused: ((String) -> Void)?
     var onHello: (([String: Any]) -> Void)?
     var onSet: (([String: Any]) -> Void)?
     var onFocusPoint: ((CGPoint) -> Void)?
@@ -26,9 +33,21 @@ final class StreamServer {
 
     private var listener: NWListener?
     private var listenerReady = false
-    private var useBonjour = true
     private var connection: NWConnection?
     private var connId = 0
+    // who may connect
+    private var wifiAllowed = false
+    private var wifiCode = ""
+    private var wrongCodes = WrongCodeLog()
+    private var peerHost = ""
+    private var peerLocal = false
+    /// USB, or Wi-Fi after the pairing code was proved. Nothing is sent or obeyed before.
+    private var authed = false
+    /// onConnected was delivered for this connection.
+    private var announced = false
+    private var challenge: Data?
+    private var pendingHello: [String: Any]?
+    private var acceptedAt = Date()
     private var parser = FrameParser()
     private var gotHello = false
     private var videoStarted = false
@@ -71,6 +90,20 @@ final class StreamServer {
         }
     }
 
+    /// The phone's "Allow Wi-Fi connections" switch and pairing code. A Wi-Fi PC that connected under the
+    /// old values is dropped; the USB connection is left alone.
+    func setWifi(allowed: Bool, code: String) {
+        queue.async {
+            let c = Pairing.normalize(code)
+            guard allowed != self.wifiAllowed || c != self.wifiCode else { return }
+            self.wifiAllowed = allowed
+            self.wifiCode = c
+            if self.connection != nil && !self.peerLocal {
+                self.close(reason: "Wi-Fi was switched off or the pairing code changed on the iPhone")
+            }
+        }
+    }
+
     func send(_ type: MsgType, json: [String: Any]) {
         guard let data = Framing.encodeJSON(type, json) else { return }
         queue.async { self.sendRaw(data, video: false) }
@@ -107,9 +140,7 @@ final class StreamServer {
             queue.asyncAfter(deadline: .now() + 2) { self.startListener() }
             return
         }
-        if useBonjour {
-            l.service = NWListener.Service(name: "Taco Cam", type: "_tacocam._tcp")
-        }
+        // No Bonjour advertisement: the PC never looked for it, it only told the network where the camera is.
         l.stateUpdateHandler = { [weak self, weak l] st in
             guard let self = self, let l = l, l === self.listener else { return }
             switch st {
@@ -121,8 +152,6 @@ final class StreamServer {
                 self.listenerReady = false
                 l.cancel()
                 self.listener = nil
-                // Bonjour can fail on its own (local network permission); listen without it next time.
-                self.useBonjour = false
                 DispatchQueue.main.async { self.onListening?(false) }
                 self.queue.asyncAfter(deadline: .now() + 2) { self.startListener() }
             case .cancelled:
@@ -141,12 +170,43 @@ final class StreamServer {
     // MARK: connection
 
     private func accept(_ c: NWConnection) {
+        let peer = Pairing.peer(c.endpoint)
+        let now = Date()
+        let decision = Pairing.decide(
+            local: peer.local,
+            wifiAllowed: wifiAllowed,
+            codeSet: wifiCode.count == Pairing.codeLength,
+            locked: wrongCodes.isLocked(peer.host, now: now),
+            busy: connection != nil && authed,
+            quiet: now.timeIntervalSince(lastRx) >= Pairing.quietAfter)
+        if decision != .accept {
+            c.cancel()
+            let why: String
+            switch decision {
+            case .refuseWifiOff:
+                why = "Wi-Fi connections are off (Settings > Wi-Fi)"
+            case .refuseLocked:
+                why = "too many wrong pairing codes, it has to wait a minute"
+            default:
+                why = "a PC is already connected"
+            }
+            let text = "Refused a connection from \(peer.host): \(why)"
+            DispatchQueue.main.async { self.onRefused?(text) }
+            return
+        }
         if connection != nil {
             close(reason: "a new PC connection replaced it")
         }
         connId += 1
         let id = connId
         connection = c
+        peerHost = peer.host
+        peerLocal = peer.local
+        authed = peer.local
+        announced = false
+        challenge = nil
+        pendingHello = nil
+        acceptedAt = now
         parser = FrameParser()
         gotHello = false
         videoStarted = false
@@ -163,7 +223,7 @@ final class StreamServer {
             guard let self = self, id == self.connId else { return }
             switch st {
             case .ready:
-                DispatchQueue.main.async { self.onConnected?() }
+                if self.authed { self.announce() }   // Wi-Fi: announced once the pairing code is proved
             case .failed, .cancelled:
                 self.close(reason: nil)
             default:
@@ -200,21 +260,75 @@ final class StreamServer {
         }
     }
 
-    private func handle(type: UInt8, payload: Data) {
-        guard let t = MsgType(rawValue: type) else { return }  // unknown types are ignored
+    private func announce() {
+        guard connection != nil, !announced else { return }
+        announced = true
+        let label = peerLocal ? "USB" : "Wi-Fi \(peerHost)"
+        DispatchQueue.main.async { self.onConnected?(label) }
+    }
+
+    /// A Wi-Fi connection before the pairing code is proved: HELLO gets a challenge, AUTH is checked,
+    /// everything else is dropped (CONTRACT section 2, "Pairing").
+    private func handleBeforePairing(_ t: MsgType, payload: Data) {
         switch t {
         case .hello:
+            pendingHello = FrameParser.jsonObject(payload) ?? [:]
+            if challenge == nil {
+                let nonce = Pairing.newNonce()
+                challenge = nonce
+                if let msg = Framing.encodeJSON(.auth, ["nonce": Pairing.hex(nonce)]) {
+                    sendRaw(msg, video: false, beforePairing: true)
+                }
+            }
+        case .auth:
+            guard let phoneNonce = challenge else { return }
             let obj = FrameParser.jsonObject(payload) ?? [:]
-            if let proto = obj["proto"] as? Int, proto != 1 {
-                sendLog("PC speaks protocol \(proto), this app speaks 1")
+            let pcNonce = (obj["nonce"] as? String).flatMap { Pairing.unhex($0) } ?? Data()
+            let mac = (obj["mac"] as? String).flatMap { Pairing.unhex($0) } ?? Data()
+            guard Pairing.check(mac, code: wifiCode, role: "pc", phoneNonce: phoneNonce, pcNonce: pcNonce) else {
+                wrongCodes.wrong(peerHost, now: Date())
+                let text = "Refused \(peerHost): wrong pairing code"
+                DispatchQueue.main.async { self.onRefused?(text) }
+                close(reason: "wrong pairing code")
+                return
             }
-            gotHello = true
-            let id = connId
-            DispatchQueue.main.async { self.onHello?(obj) }
-            // Video starts after the PC's SET; if it never comes, start anyway after 3 s.
-            queue.asyncAfter(deadline: .now() + 3) {
-                if id == self.connId && !self.videoStarted { self.startVideoNow() }
+            wrongCodes.right(peerHost)
+            authed = true
+            // Prove the code back, so the PC knows this is the phone and not something else at its address.
+            let proof = Pairing.proof(code: wifiCode, role: "phone", phoneNonce: phoneNonce, pcNonce: pcNonce)
+            if let msg = Framing.encodeJSON(.auth, ["mac": Pairing.hex(proof)]) {
+                sendRaw(msg, video: false)
             }
+            announce()
+            acceptHello(pendingHello ?? [:])
+            pendingHello = nil
+        default:
+            break
+        }
+    }
+
+    private func acceptHello(_ obj: [String: Any]) {
+        if let proto = obj["proto"] as? Int, proto != 1 {
+            sendLog("PC speaks protocol \(proto), this app speaks 1")
+        }
+        gotHello = true
+        let id = connId
+        DispatchQueue.main.async { self.onHello?(obj) }
+        // Video starts after the PC's SET; if it never comes, start anyway after 3 s.
+        queue.asyncAfter(deadline: .now() + 3) {
+            if id == self.connId && !self.videoStarted { self.startVideoNow() }
+        }
+    }
+
+    private func handle(type: UInt8, payload: Data) {
+        guard let t = MsgType(rawValue: type) else { return }  // unknown types are ignored
+        if !authed {
+            handleBeforePairing(t, payload: payload)
+            return
+        }
+        switch t {
+        case .hello:
+            acceptHello(FrameParser.jsonObject(payload) ?? [:])
         case .set:
             guard let obj = FrameParser.jsonObject(payload) else {
                 sendLog("SET ignored: not a JSON object")
@@ -234,17 +348,22 @@ final class StreamServer {
             DispatchQueue.main.async { self.onFocusPoint?(p) }
         case .ping:
             sendRaw(Framing.encode(.pong, payload: payload), video: false)
-        case .state, .video, .pong, .log:
-            break  // phone -> PC types; ignore if echoed
+        case .state, .video, .pong, .log, .auth:
+            break  // phone -> PC types (and AUTH once paired); ignore
         }
     }
 
     private func close(reason: String?) {
         guard let c = connection else { return }
+        let wasAnnounced = announced
         connection = nil
         connId += 1
         videoStarted = false
         gotHello = false
+        authed = false
+        announced = false
+        challenge = nil
+        pendingHello = nil
         pendingFrames = 0
         pendingBytes = 0
         if let r = reason {
@@ -252,11 +371,14 @@ final class StreamServer {
         } else {
             c.cancel()
         }
-        DispatchQueue.main.async { self.onDisconnected?() }
+        if wasAnnounced {
+            DispatchQueue.main.async { self.onDisconnected?() }
+        }
     }
 
-    private func sendRaw(_ data: Data, video: Bool) {
-        guard let c = connection else { return }
+    /// Nothing goes to a connection that has not proved the pairing code, except the pairing question itself.
+    private func sendRaw(_ data: Data, video: Bool, beforePairing: Bool = false) {
+        guard let c = connection, authed || beforePairing else { return }
         let id = connId
         let n = data.count
         if video {
@@ -274,7 +396,7 @@ final class StreamServer {
     }
 
     private func startVideoNow() {
-        guard connection != nil, !videoStarted else { return }
+        guard connection != nil, authed, !videoStarted else { return }
         videoStarted = true
         waitingForKey = true
         congested = false
@@ -286,7 +408,7 @@ final class StreamServer {
     /// Back-pressure: with more than 3 frames or 2 MB unsent, drop non-key frames until the queue
     /// drains, then the next frame sent is a keyframe.
     private func handleFrame(_ f: EncodedFrame) {
-        guard connection != nil, videoStarted else { return }
+        guard connection != nil, authed, videoStarted else { return }
         if waitingForKey {
             if !f.isKeyframe {
                 dropped += 1
@@ -337,7 +459,10 @@ final class StreamServer {
         if connection != nil && now.timeIntervalSince(lastRx) > StreamServer.deadAfter {
             close(reason: "nothing heard from the PC for \(Int(StreamServer.deadAfter)) s")
         }
-        let connected = connection != nil
+        if connection != nil && !authed && now.timeIntervalSince(acceptedAt) > Pairing.proveWithin {
+            close(reason: "no pairing code received")
+        }
+        let connected = connection != nil && authed
         DispatchQueue.main.async { self.onStats?(connected ? fps : 0, connected ? mbps : 0, d) }
     }
 }

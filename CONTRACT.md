@@ -24,8 +24,21 @@ Other stations do not commit; the orchestrator snapshots at the end.
 
 ## 1. Transport
 
-- The iPhone app listens on **TCP port 47777** on all interfaces (Network.framework `NWListener`).
-  One PC client at a time; a new connection replaces the old one (close the old one).
+- The iPhone app listens on **TCP port 47777** (Network.framework `NWListener`), one PC client at a time.
+- **Who may connect (changed 2026-11-11, security finding WEBCAM-20261028-01).** The phone decides at accept:
+  - A connection from the phone's own loopback address (127.0.0.1, ::1) is the **USB cable** (usbmuxd delivers
+    USB connections there; nothing on a network can use that address). It is always let in, no code.
+  - Anything else is **Wi-Fi** and is closed at once unless the phone's switch "Allow Wi-Fi connections"
+    (Settings, off by default) is on. With it on, the connection must pass **Pairing** (section 2) within 3 s;
+    until then the phone sends it nothing but the pairing question and obeys nothing it sends.
+  - An address that sent 5 wrong codes in a row is refused for 60 s.
+  - **A connected PC is never pushed out by a newcomer.** While a PC that was let in is connected, a new
+    connection is closed at once. One exception: a new USB connection replaces the old one when nothing was
+    heard from the old one for 3 s (the PC pings every 1 s, so that means it crashed or lost its cable).
+    A connection that has not passed pairing yet is replaced by any newer one.
+  - No Bonjour advertisement (the PC never browsed for it).
+  - The phone shows how the PC is connected ("Connected (USB)" / "Connected (Wi-Fi 192.168.1.5)") and, for a
+    short while, every connection it turned away.
 - **USB (main way):** the PC connects through Apple's usbmuxd, which the Apple Mobile Device Service on
   Windows exposes at **TCP 127.0.0.1:27015**. Protocol: 16-byte little-endian header
   `(u32 total_length incl. header, u32 version=1, u32 message=8 (plist), u32 tag)` + XML plist body.
@@ -36,8 +49,12 @@ Other stations do not commit; the orchestrator snapshots at the end.
   - `Listen` gives `Attached`/`Detached` events (used to notice plug/unplug).
   - Use only USB-connected devices for the "usb" mode. Device name: lockdown is not needed; show the
     `SerialNumber` (shortened) until the phone's HELLO gives its name.
-- **Wi-Fi (bonus):** direct TCP to `<phone ip>:47777`; the phone shows its IP addresses on screen.
-  The fake phone (`pc/tools/fake_phone.py`) listens on 127.0.0.1:47777 and is reached this way.
+- **Wi-Fi (bonus):** direct TCP to `<phone ip>:47777`; with "Allow Wi-Fi connections" on, the phone shows its
+  IP addresses and the pairing code. The PC needs both (`pc.wifi_host`, `pc.wifi_code`); without a code it does
+  not connect to a Wi-Fi address at all, and it believes the device there only after that device proved the
+  code too (finding WEBCAM-20261028-02).
+  The fake phone (`pc/tools/fake_phone.py`) listens on 127.0.0.1:47777 and is reached this way; an address
+  that is this PC itself (127.0.0.1, ::1) needs no code unless the fake phone was started with `--code`.
 
 ## 2. Framing (both directions, after the transport is open)
 
@@ -51,6 +68,7 @@ N must be 1..16_777_216; anything else = protocol error, drop the connection.
 | 0x03 | STATE | phone->PC | UTF-8 JSON: full state (section 5) |
 | 0x04 | KEYFRAME | PC->phone | empty: send an IDR frame now |
 | 0x05 | FOCUS_POINT | PC->phone | UTF-8 JSON `{"x":0..1,"y":0..1}` in SENSOR frame coords (as sent, before any PC rotation/mirror); focus + exposure point of interest, then continuous auto around it |
+| 0x06 | AUTH | both | UTF-8 JSON, Wi-Fi pairing only (added 2026-11-11, see **Pairing**). Never sent over USB |
 | 0x10 | VIDEO | phone->PC | `u8 flags` + `u64 big-endian pts_us` + Annex-B bitstream (00 00 00 01 start codes) |
 | 0x20 | PING | PC->phone | any bytes; phone answers PONG with the same bytes |
 | 0x21 | PONG | phone->PC | the PING's bytes |
@@ -64,6 +82,36 @@ then a STATE, then the PC sends one SET with ALL its phone settings, then the ph
 VIDEO (starting with a keyframe). The phone sends STATE after every change (from the PC or its own
 screen) and every 2 s (battery/thermal). The PC sends PING every 1 s; no data from the phone for 5 s =
 connection dead, reconnect.
+
+**Pairing (Wi-Fi only, added 2026-11-11).** Over USB the handshake above is unchanged, byte for byte. Over
+Wi-Fi three AUTH messages come between the PC's HELLO and the phone's HELLO:
+
+1. PC sends HELLO as always. The phone keeps it and answers `AUTH {"nonce":"<32 hex>"}` (16 random bytes, new
+   for every connection). It sends nothing else.
+2. PC answers `AUTH {"nonce":"<32 hex>","mac":"<64 hex>"}`: its own 16 random bytes and
+   `HMAC-SHA256(key = code, msg = "tacocam-pair-v1 pc " + phone nonce + PC nonce)` (nonces as raw bytes).
+3. The phone checks the mac in constant time. Wrong: it counts a wrong try for that address, sends LOG
+   "Closing: wrong pairing code" and closes (one try per connection). Right: it answers
+   `AUTH {"mac":"<64 hex>"}` = the same HMAC with `"tacocam-pair-v1 phone "`, then goes on with the normal
+   handshake (its HELLO, STATE, ...).
+4. The PC checks the phone's mac in constant time before it accepts the HELLO. A HELLO, STATE, VIDEO or LOG
+   that arrives before a valid mac is not used; a HELLO without it ends the connection ("did not prove the
+   pairing code"). After a failed pairing the PC waits 30 s (or for changed settings) before it tries again.
+
+The **code** is 16 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (80 random bits, made on the phone the
+first time Wi-Fi is switched on, kept in the app's UserDefaults; "Make a new code" replaces it). Shown as
+`XXXX-XXXX-XXXX-XXXX`. Both sides normalise what was typed (capitals, drop every other character) and use
+its ASCII bytes as the HMAC key; a code that is not 16 characters after that never passes. The PC keeps it in
+`settings.json` (`pc.wifi_code`, gitignored). A phone that asks for the code over USB too (step 1) is answered
+the same way when the PC has a code.
+
+What pairing does not do: it does not encrypt. Someone who can already read or change the traffic between
+phone and PC on the Wi-Fi can still see the picture; the code is long so that listening to a handshake does
+not let them work it out. Use the USB cable where that matters.
+
+Test numbers (both test suites use them): code `ABCDEFGHJKLMNPQR`, phone nonce bytes 0..15, PC nonce bytes
+16..31: PC mac `5e8b76ad49eeca05d4fdb4ceafeb122a7b7f4c95dd1ccd8c3339f7086b47dd6c`, phone mac
+`1bdf32c75bc42d0c329daf2dce2053f86ba92b4f90b736e3524b9698cc834330`.
 
 **VIDEO flags:** bit0 = keyframe (IDR), bit1 = format changed (codec/size differ from the previous
 frame). Every keyframe carries its parameter sets in front (H.264: SPS+PPS, HEVC: VPS+SPS+PPS) so the
@@ -171,6 +219,8 @@ Settings file: `D:\ClaudeProjects\Webcam\settings.json` (gitignored), written by
   "pc": {
     "connect": "usb",               // "usb" | "wifi"
     "wifi_host": "",                // phone IP for "wifi"; "127.0.0.1" = fake phone
+    "wifi_code": "",                // (added 2026-11-11) pairing code shown in the phone app (Settings > Wi-Fi); needed
+                                    // for every Wi-Fi address that is not this PC itself (section 2, Pairing)
     "rotate": "auto",               // "auto" | 0 | 90 | 180 | 270 (clockwise)
     "mirror": false, "flip": false, // after rotation: mirror = left-right, flip = upside-down
     "output": "1920x1080",          // virtual camera size: "1280x720","1920x1080","3840x2160" landscape, "1080x1920","2160x3840" portrait

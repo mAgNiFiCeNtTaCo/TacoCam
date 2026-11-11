@@ -2,7 +2,10 @@
 
 Every message: u32 big-endian N (length of what follows) + u8 type + N-1 bytes payload, N in 1..16_777_216.
 """
+import hashlib
+import hmac
 import json
+import os
 import struct
 
 HELLO = 0x01
@@ -10,13 +13,20 @@ SET = 0x02
 STATE = 0x03
 KEYFRAME = 0x04
 FOCUS_POINT = 0x05
+AUTH = 0x06
 VIDEO = 0x10
 PING = 0x20
 PONG = 0x21
 LOG = 0x30
 
 NAMES = {HELLO: "HELLO", SET: "SET", STATE: "STATE", KEYFRAME: "KEYFRAME", FOCUS_POINT: "FOCUS_POINT",
-         VIDEO: "VIDEO", PING: "PING", PONG: "PONG", LOG: "LOG"}
+         AUTH: "AUTH", VIDEO: "VIDEO", PING: "PING", PONG: "PONG", LOG: "LOG"}
+
+# Wi-Fi pairing (CONTRACT section 2, "Pairing"): the code the phone shows, proved in both directions.
+PAIR_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+PAIR_CODE_LEN = 16
+PAIR_NONCE_LEN = 16
+_PAIR_LABEL = b"tacocam-pair-v1 "
 
 MAX_LEN = 16_777_216          # largest N (type byte + payload)
 PORT = 47777
@@ -70,6 +80,39 @@ def decode_video(payload):
         raise ProtocolError("VIDEO payload shorter than its 9-byte header")
     flags, pts = _VIDEO_HEADER.unpack_from(payload, 0)
     return flags, pts, bytes(payload[_VIDEO_HEADER.size:])
+
+
+def pair_normalize(text):
+    """The code as both sides use it: capitals, only the letters and digits a code can hold (no dashes, spaces)."""
+    return "".join(ch for ch in str(text or "").upper() if ch in PAIR_ALPHABET)
+
+
+def pair_nonce():
+    return os.urandom(PAIR_NONCE_LEN)
+
+
+def pair_mac(code, role, phone_nonce, pc_nonce):
+    """HMAC-SHA256 keyed with the code over "tacocam-pair-v1 <role> " + phone nonce + PC nonce. role: "pc" | "phone"."""
+    msg = _PAIR_LABEL + role.encode("ascii") + b" " + bytes(phone_nonce) + bytes(pc_nonce)
+    return hmac.new(pair_normalize(code).encode("ascii"), msg, hashlib.sha256).digest()
+
+
+def pair_check(mac, code, role, phone_nonce, pc_nonce):
+    """True when mac is the right proof. Compared in constant time; a code of the wrong length never passes."""
+    if len(pair_normalize(code)) != PAIR_CODE_LEN or not isinstance(mac, (bytes, bytearray)):
+        return False
+    return hmac.compare_digest(bytes(mac), pair_mac(code, role, phone_nonce, pc_nonce))
+
+
+def pair_unhex(text, length=None):
+    """Hex string -> bytes, or None when it is not hex (or not `length` bytes long)."""
+    try:
+        data = bytes.fromhex(text) if isinstance(text, str) else None
+    except ValueError:
+        return None
+    if data is None or (length is not None and len(data) != length):
+        return None
+    return data
 
 
 class FrameReader:

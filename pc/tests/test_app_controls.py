@@ -25,6 +25,7 @@ CASES = [
     ("phone.screen", "dim", {"phone": {"screen": "dim"}}),
     ("pc.connect", "wifi", {"pc": {"connect": "wifi"}}),
     ("pc.wifi_host", "192.168.1.23", {"pc": {"wifi_host": "192.168.1.23"}}),
+    ("pc.wifi_code", "TACK-2345-CAMS-6789", {"pc": {"wifi_code": "TACK-2345-CAMS-6789"}}),
     ("pc.rotate", 270, {"pc": {"rotate": 270}}),
     ("pc.rotate", "auto", {"pc": {"rotate": "auto"}}),
     ("pc.mirror", True, {"pc": {"mirror": True}}),

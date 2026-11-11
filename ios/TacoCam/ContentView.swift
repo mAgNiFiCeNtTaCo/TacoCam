@@ -76,10 +76,17 @@ struct ContentView: View {
                     .foregroundColor(model.thermal == "serious" || model.thermal == "critical" ? .orange : .white)
             }
             .font(.caption)
-            if !model.addresses.isEmpty {
-                Text("Wi-Fi mode: " + model.addresses.joined(separator: "  "))
+            if let refused = model.refusedNote {
+                Text(refused)
+                    .font(.caption)
+                    .foregroundColor(tacoOrange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if model.wifiAllowed && !model.addresses.isEmpty {
+                Text("Wi-Fi on (needs the pairing code in Settings): " + model.addresses.joined(separator: "  "))
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .foregroundColor(.white)

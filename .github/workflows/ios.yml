@@ -12,6 +12,11 @@ concurrency:
   group: ios-build
   cancel-in-progress: true
 
+# The job only reads the code. Actions are pinned to exact commits and XcodeGen to a checked download, so a
+# moved tag or a changed Homebrew formula cannot change the app that gets installed on the phone.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: macos-15
@@ -20,13 +25,22 @@ jobs:
       run:
         working-directory: ios
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Tools
+        env:
+          XCODEGEN_VERSION: "2.46.0"
+          XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
         run: |
           xcodebuild -version
-          brew install xcodegen
-          xcodegen --version
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/xcodegen/bin/xcodegen" --version
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -51,7 +65,7 @@ jobs:
           zip -qry TacoCam.ipa Payload
           ls -la TacoCam.ipa
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: TacoCam-ipa
           path: ios/TacoCam.ipa
