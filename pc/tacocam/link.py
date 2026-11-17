@@ -2,6 +2,8 @@
 
 usb:  first USB iPhone that usbmuxd lists, its port 47777 (refused = status "no_app", retry every 1 s).
 wifi: TCP to host:47777 ("host:port" also accepted, used by tests and the fake phone on another port).
+android: first Android phone adb sees over USB (adb.py): installs / updates the Taco Cam app on it, opens it, reads
+      its pairing code over the cable and connects through `adb forward`; every connection proves the code.
 Handshake: PC HELLO -> phone HELLO + STATE -> PC sends one SET with all phone settings -> VIDEO.
 PING every 1 s; nothing from the phone for 5 s = dead, reconnect.
 Pairing (CONTRACT section 2): over Wi-Fi the phone answers the PC's HELLO with an AUTH challenge; the PC proves the
@@ -21,14 +23,21 @@ import struct
 import threading
 import time
 
+from . import adb as adbmod
 from . import protocol, usbmux
 
 PING_INTERVAL = 1.0
 DEAD_AFTER = 5.0
 RETRY = 1.0
 PAIR_RETRY = 30.0     # after a failed pairing: wait this long (or for new settings) before trying again
+ANDROID_PAIR_RETRY = 2.0   # Android: the code is read again over the cable, so try again soon
 
 NEED_CODE = "Wi-Fi needs the pairing code: on the iPhone open Taco Cam > Settings > Wi-Fi, and type the code here"
+ANDROID_PLUG = ("Plug the Android phone into this PC with a USB cable. First time: switch on USB debugging "
+                "(see the Phone tab)")
+ANDROID_ALLOW = "On the phone, tap Allow on \"Allow USB debugging?\" (tick \"Always allow from this computer\")"
+ANDROID_NOT_READY = ("The phone is plugged in but not ready: unplug it and plug it in again, and set the USB mode "
+                     "to \"File transfer\" if the phone asks")
 
 
 class PairingFailed(Exception):
@@ -63,7 +72,7 @@ def split_host(text, default_port=protocol.PORT):
 
 class Link:
     def __init__(self, connect="usb", wifi_host="", port=protocol.PORT, usbmux_address=None,
-                 log=None, wifi_code="", **callbacks):
+                 log=None, wifi_code="", adb=None, **callbacks):
         self._lock = threading.Lock()
         self._connect = connect
         self._wifi_host = wifi_host
@@ -85,6 +94,8 @@ class Link:
         self.rtt_ms = None
         self.hello = None
         self._last_logged = None
+        self._adb = adb                  # adb.Adb (tests pass a fake); made on first use
+        self._checked = set()            # Android phones whose app version was checked since they were plugged in
 
     # -- public ----------------------------------------------------------------------------------
     def start(self):
@@ -211,6 +222,11 @@ class Link:
                                     say=f"{host} answers but Taco Cam is not open there")
                 except OSError:
                     self._set_state("searching", "wifi", None, None)
+            elif mode == "android":
+                found = self._android()
+                if found is not None:
+                    sock, name, code = found
+                    transport, must_prove = "android", True
             else:
                 try:
                     devices = usbmux.usb_devices(self.usbmux_address, timeout=1.0)
@@ -242,10 +258,69 @@ class Link:
                 break
             if problem:      # pairing failed: say so and do not hammer the phone (it locks out after wrong codes)
                 self._set_state("error", transport, name, problem)
-                self._wait(PAIR_RETRY)
+                self._wait(ANDROID_PAIR_RETRY if transport == "android" else PAIR_RETRY)
             else:
                 self._wait(0.2)
         self._set_state("searching", None, None, None)
+
+    def _android(self):
+        """Find the Android phone, make sure the Taco Cam app is on it and open, and open the cable connection.
+        Returns (socket, phone name, pairing code), or None after setting the state that says why not."""
+        if self._adb is None:
+            self._adb = adbmod.Adb()
+        adb = self._adb
+        try:
+            devices = adb.devices()
+            ready = [d for d in devices if d["state"] == "device"]
+            self._checked &= {d["serial"] for d in ready}        # unplugged phones are checked again next time
+            if not ready:
+                if any(d["state"] == "unauthorized" for d in devices):
+                    self._set_state("error", "android", None, ANDROID_ALLOW, say=ANDROID_ALLOW)
+                elif devices:
+                    self._set_state("error", "android", None, ANDROID_NOT_READY, say=ANDROID_NOT_READY)
+                else:
+                    self._set_state("searching", "android", None, None, say=ANDROID_PLUG)
+                return None
+            dev = sorted(ready, key=lambda d: not d["usb"])[0]
+            serial, model = dev["serial"], dev["model"]
+            if serial not in self._checked:
+                apk, version = adbmod.find_apk()
+                have = adb.installed_version(serial)
+                if apk and (have is None or (version is not None and have < version)):
+                    self._set_state("connecting", "android", model, None,
+                                    say=f"Installing the Taco Cam app on the {model} (about 10 seconds)...")
+                    problem = adb.install(serial, apk)
+                    if problem:
+                        self._set_state("error", "android", model, problem, say=f"Android phone: {problem}")
+                        self._wait(5.0)
+                        return None
+                    self.log(f"Taco Cam app {'updated' if have else 'installed'} on the {model}")
+                elif have is None:
+                    msg = "the Taco Cam app isn't on the phone and this PC has no copy of it to install"
+                    self._set_state("error", "android", model, msg, say=f"Android phone: {msg}")
+                    return None
+                self._checked.add(serial)
+            if not adb.running(serial):
+                self._set_state("no_app", "android", model, None, say=f"Opening Taco Cam on the {model}...")
+                adb.launch(serial)
+                self._wait(1.5)
+                return None
+            code = adb.read_code(serial)
+            if not code:
+                self._set_state("no_app", "android", model, None,
+                                say=f"Waiting for Taco Cam to start on the {model} (unlock the phone if needed)")
+                adb.launch(serial)
+                return None
+            port = adb.forward(serial)
+        except adbmod.AdbError as e:
+            self._set_state("error", "android", None, str(e), say=f"Android phone: {e}")
+            return None
+        try:
+            sock = socket.create_connection(("127.0.0.1", port), timeout=2.0)
+        except OSError:
+            self._set_state("no_app", "android", model, None)
+            return None
+        return sock, model, code
 
     def _session(self, sock, transport, name, code="", must_prove=False):
         """One connection, until it ends. Returns None, or a sentence when it ended because pairing failed."""
@@ -335,9 +410,11 @@ class Link:
                                      "update the app or the PC program")
                         dev = hello.get("device") or name
                         connected, hello_at = True, time.monotonic()
+                        system = (f"Android {hello.get('android', '?')}" if hello.get("platform") == "android"
+                                  else f"iOS {hello.get('ios', '?')}")
                         self._set_state("connected", transport, str(dev), None,
                                         say=f"Connected to {dev} ({transport}, Taco Cam {hello.get('version', '?')}"
-                                            f", iOS {hello.get('ios', '?')})")
+                                            f", {system})")
                         self._call("on_hello", hello)
                         self._call("on_connected")
                     elif mtype == protocol.LOG:

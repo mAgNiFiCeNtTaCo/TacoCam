@@ -67,7 +67,7 @@ ENUMS = {
     "phone.screen": {"normal", "dim"},
     "phone.anti_flicker": {"off", "60hz", "50hz"},
     "phone.zoom_glide_s": {0, 0.5, 1, 2},
-    "pc.connect": {"usb", "wifi"},
+    "pc.connect": {"usb", "wifi", "android"},
     "pc.rotate": {"auto", 0, 90, 180, 270},
     "pc.output": set(OUTPUT_SIZES),
     "pc.fit": {"crop", "fit", "stretch"},

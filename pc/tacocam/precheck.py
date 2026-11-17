@@ -132,7 +132,15 @@ def run_checks(st, settings, now=None, feed_in_use=False):
     if ps and ps.get("screen") != "dim":
         add(INFO, "Tip: Dim the phone screen (Phone tab) to save battery and heat")
     add(INFO, "Turn on Do Not Disturb on the iPhone: a FaceTime call would take the camera away")
+    if st.get("transport") == "android" or pc.get("connect") == "android":
+        out = [(lvl, _android_words(text)) for lvl, text in out]
     return out
+
+
+def _android_words(text):
+    """The same lines for an Android phone: no iPhone, iOS, iloader or FaceTime."""
+    return (text.replace("FaceTime call", "phone or video call").replace("iOS paused", "Android paused")
+            .replace("iOS", "Android").replace("an iPhone", "a phone").replace("iPhone", "phone"))
 
 
 def problems(results):

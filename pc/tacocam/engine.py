@@ -391,10 +391,11 @@ class Engine:
             pc = self._settings["pc"]
             state = self._phone_state
             connect, host = pc.get("connect"), pc.get("wifi_host")
+        android = connect == "android"
         if link is not None and link.state == "connected" and state and state.get("app_active") is False:
-            return "background", {}
+            return ("android_background" if android else "background"), {}
         if link is not None and link.state == "no_app":
-            return "no_app", {}
+            return ("android_no_app" if android else "no_app"), {}
         if link is not None and link.state == "error" and connect != "wifi" and link.error:
             return "error", {"error": link.error}
         if connect == "wifi":
@@ -402,6 +403,8 @@ class Engine:
             if not h:
                 return "wifi_nohost", {}
             return "wifi", {"host": h}
+        if android:
+            return "android", {}
         return "usb", {}
 
     def _open_vcam(self, w, h, fps, name):

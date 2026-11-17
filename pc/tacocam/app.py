@@ -116,14 +116,21 @@ def describe_status(st, vcam_name="Taco Cam", now=None):
     wifi = transport == "wifi"
     way = "Wi-Fi" if wifi else "USB"
     name = st.get("device_name") or "iPhone"
+    android = transport == "android"
+    if android and not st.get("device_name"):
+        name = "the Android phone"
     if link == "connected":
         conn, color = f"Connected to {name} by {way}", GOOD
+    elif link == "no_app" and android:
+        conn, color = f"Phone found: opening Taco Cam on {name} (unlock the phone)", WARN
     elif link == "no_app":
         conn, color = "iPhone found: open Taco Cam on the phone", WARN
     elif link == "connecting":
         conn, color = f"Connecting to {name}...", WARN
     elif link == "error":
-        conn, color = "Problem: " + (st.get("error") or "can't reach the iPhone"), BAD
+        conn, color = "Problem: " + (st.get("error") or "can't reach the phone"), BAD
+    elif android:
+        conn, color = "Searching for the Android phone on USB...", MUTED
     else:
         conn, color = ("Searching for iPhone on Wi-Fi..." if wifi else "Searching for iPhone on USB..."), MUTED
     out = {"conn": conn, "conn_color": color}
@@ -524,14 +531,25 @@ class App:
         self._add(p, "phone.screen", Switch(p, "Phone screen", "Dim it (saves battery and heat)", on="dim", off="normal",
                   hint="The phone screen goes black with a small status line. Touch the phone to wake it."))
         self._head(p, "Connection")
-        self._add(p, "pc.connect", Choice(p, "Connect by", [("usb", "USB cable"), ("wifi", "Wi-Fi")],
-                  hint="USB is the most reliable. Wi-Fi needs the phone's IP address and pairing code (the phone "
-                       "app shows both once Wi-Fi is switched on in its Settings)."))
+        self._add(p, "pc.connect", Choice(p, "Connect by", [("usb", "iPhone (USB)"), ("android", "Android (USB)"),
+                                                           ("wifi", "Wi-Fi")],
+                  hint="iPhone (USB) and Android (USB) use the cable, the most reliable way. Android: Taco Cam "
+                       "installs and opens the phone app by itself; the phone needs USB debugging switched on once "
+                       "(see the steps below). Wi-Fi (iPhone only) needs the phone's IP address and pairing code."))
         self._add(p, "pc.wifi_host", TextField(p, "Phone IP address",
                   hint="Only for Wi-Fi: the number shown on the phone, like 192.168.1.23. 127.0.0.1 = the test phone."))
         self._add(p, "pc.wifi_code", TextField(p, "Pairing code",
                   hint="Only for Wi-Fi: on the phone open Taco Cam > Settings > Wi-Fi, switch it on and type the "
                        "code shown there (dashes and small letters are fine). The USB cable needs no code."))
+        self._head(p, "Android phone: first time")
+        steps = ttk.Label(p, wraplength=520, justify="left", text=(
+            "1. On the phone open Settings > About phone and tap \"Build number\" 7 times (Samsung: Settings > "
+            "About phone > Software information).\n"
+            "2. Go back to Settings, open Developer options (Settings > System on most phones) and switch on "
+            "\"USB debugging\".\n"
+            "3. Plug the phone into this PC and tap \"Allow\" on \"Allow USB debugging?\" (tick \"Always allow\").\n"
+            "Taco Cam then puts its app on the phone and opens it by itself."))
+        steps.pack(fill="x", pady=(2, 6))
         self._head(p, "Try without the iPhone")
         row = ttk.Frame(p)
         row.pack(fill="x", pady=3)

@@ -202,6 +202,15 @@ CARD_MESSAGES = {
                      "Or switch to USB and plug the iPhone in."]),
     "error": ("Taco Cam: problem",
               ["{error}"]),
+    "android": ("Taco Cam: waiting for the phone",
+                ["Plug the Android phone into this PC with its USB cable.",
+                 "Unlock the phone. Taco Cam opens on it by itself.",
+                 "First time? Tap \"Allow\" on \"Allow USB debugging?\"."]),
+    "android_no_app": ("Taco Cam: phone found",
+                       ["Opening the Taco Cam app on the phone...",
+                        "Unlock the phone and keep Taco Cam on its screen."]),
+    "android_background": ("Taco Cam: app in the background",
+                           ["Taco Cam isn't on the phone's screen - open it again."]),
 }
 
 _card_cache = {}
