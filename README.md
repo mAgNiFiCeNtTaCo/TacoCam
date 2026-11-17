@@ -1,12 +1,12 @@
 # Taco Cam
 
-Taco Cam turns your iPhone into a webcam for OBS, like Iriun Webcam does, and adds a **0.5x zoom-out**
-(the ultra-wide lens). It works mainly over the USB cable. It is made for a **portrait 1080x1920** OBS
+Taco Cam turns your iPhone or Android phone into a webcam for OBS, like Iriun Webcam does, and adds a
+**0.5x zoom-out** (the ultra-wide lens). It works mainly over the USB cable. It is made for a **portrait 1080x1920** OBS
 canvas (your Whatnot box breaks), but landscape works too.
 
 Two parts:
 
-- **The iPhone app** (Taco Cam) sends the camera picture.
+- **The phone app** (Taco Cam for iPhone in `ios/`, for Android in `android/`) sends the camera picture.
 - **The PC window** (this folder) shows the picture, lets you change every camera setting, and gives OBS a
   camera called **Taco Cam**.
 
@@ -22,6 +22,28 @@ You need an iPhone 11 or newer (older phones have no 0.5x lens).
 3. **The iPhone app.** Follow `docs/INSTALL_IPHONE.md` (it explains iloader step by step).
 4. Install **iTunes or Apple Devices** from the Microsoft Store if you haven't: Windows needs Apple's USB
    driver to talk to the iPhone.
+
+## Android phones and giving Taco Cam to a friend
+
+`python pc/tools/build_portable.py` makes `dist\TacoCam.zip` for a friend's Windows PC with an Android phone
+(Android 11 or newer). The friend unzips it and double-clicks **Start Taco Cam**; a **Get started** window walks
+through three steps, each one button:
+
+1. **Install the camera** (the "Taco Cam" camera for OBS; Windows asks for permission once).
+2. **Connect the phone**: USB debugging switched on once on the phone, then plug in and tap Allow. Taco Cam
+   installs its app on the phone, opens it and connects by itself, every time.
+3. **Set up OBS**: a "Taco Cam Whatnot" profile and scene collection like yours (1080x1920, Whatnot's stream
+   settings, the camera turned to fill the picture, the microphone), and OBS's connection for Whatnot's Show
+   Tools.
+
+The zip holds python.org's signed Python, Google's signed adb, the phone app and our own code as plain text,
+so antivirus programs don't flag it the way they flag a new unsigned .exe. The friend's step-by-step guide is
+`docs/How to set up Taco Cam.html` (also inside the zip). The zip starts with your settings for Whatnot:
+1080p, 0.5x, OBS output 1920x1080 not turned, the Wide Table and Close UP presets, 30 fps.
+
+Building the zip needs the Android tools in `D:\DevTools\Android` and the app's signing key from
+`python android/make_keystore.py` (`D:\DevTools\tacocam-release.jks` + `.properties`: back both up; an
+Android phone only takes an update signed with the same key).
 
 ## Shortcuts with the Taco Cam icon (optional)
 
@@ -143,7 +165,8 @@ iPhone during a show: a FaceTime call takes the camera away.
 | Control | What it does |
 |---|---|
 | Phone screen | **Dim** turns the phone screen black to save battery and heat. Touch the phone to wake it. |
-| Connect by | **USB cable** (default) or **Wi-Fi**. The phone only listens to the USB cable unless you switch on **Allow Wi-Fi connections** in the phone app's Settings. It then shows its IP address and a **pairing code**: type both here once. Without the code nothing on the Wi-Fi can see or control the camera. |
+| Connect by | **iPhone (USB)** (default), **Android (USB)** or **Wi-Fi** (iPhone). The iPhone only listens to the USB cable unless you switch on **Allow Wi-Fi connections** in the phone app's Settings. It then shows its IP address and a **pairing code**: type both here once. Without the code nothing on the Wi-Fi can see or control the camera. Android: Taco Cam installs, opens and connects to the phone app over the cable by itself; the phone needs **USB debugging** on (the steps are under this setting). |
+| Get started (button under the picture) | The three setup steps: the camera for OBS, the phone, and OBS itself. Opens by itself the first time on a friend's copy. |
 | Start test phone | Starts a pretend phone on this PC (address 127.0.0.1) so you can try the app without the iPhone. |
 
 ### Log tab
@@ -169,6 +192,10 @@ damaged, Taco Cam starts with the normal settings and keeps the broken one as `s
 - **Phone is warm**: use **Dim** on the Phone tab, lower to 1080p/30, keep it charging and out of the sun.
 - **"Another app on the iPhone took the camera"**: FaceTime or another camera app is using it. Close that app
   and open Taco Cam again. Do Not Disturb during shows prevents it.
+- **Android: "Plug the Android phone into this PC"** while it is plugged in: try another cable (some only
+  charge), pick **File transfer** in the phone's USB message, check USB debugging is on. Samsung may need
+  Samsung's USB driver on the PC.
+- **Android: "tap Allow on Allow USB debugging?"**: unlock the phone and tap Allow (tick Always allow).
 - **Taco Cam says it is already running**: look for its window in the taskbar.
 - **The window won't open at all**: double-click `Taco Cam (console).bat` to see the error, and check
   `taco-cam.log`. A message about packages means step 1 of the setup needs to be run.
@@ -176,8 +203,10 @@ damaged, Taco Cam starts with the normal settings and keeps the broken one as `s
 ## For the curious
 
 `pc/tacocam/` is the PC program (`app.py` is this window, `engine.py` does the connection, decoding and
-virtual camera). `ios/` is the iPhone app. `CONTRACT.md` describes how they talk to each other. Tests:
-`python -m pytest pc/tests -q`.
+virtual camera, `adb.py` the Android phone over USB). `ios/` is the iPhone app, `android/` the Android app.
+`CONTRACT.md` describes how they talk to each other. Tests: `python -m pytest pc/tests -q`; the Android app's own
+tests: `gradlew testDebugUnitTest` in `android/`; on GitHub, `.github/workflows/android.yml` runs the app on an
+Android emulator with the PC engine connected to it (`pc/tools/android_e2e.py`).
 
 ## License
 

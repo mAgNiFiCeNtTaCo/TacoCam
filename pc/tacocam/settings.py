@@ -51,6 +51,8 @@ DEFAULTS = {
         "clip_rotate": "auto",
         "check_on_live": True,
         "preview_turn": 0,
+        "welcome": False,          # show the "Get started" window when Taco Cam opens (the friend's copy starts True)
+        "obs_setup_done": False,   # the "Set up OBS" step ran (obssetup.py)
     },
     "presets": [],
 }

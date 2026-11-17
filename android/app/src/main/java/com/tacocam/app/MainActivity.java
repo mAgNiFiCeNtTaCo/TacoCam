@@ -406,7 +406,8 @@ public class MainActivity extends Activity implements CameraEngine.Listener, Str
             line = "Waiting for the PC: plug in the USB cable and start Taco Cam on the PC.";
         }
         status.setText(line);
-        codeText.setText("Keep this screen open while you stream.  Code: " + Proto.pretty(code));
+        codeText.setText("Keep this screen open while you stream.\nConnection code (the PC reads it by itself): "
+                + Proto.pretty(code));
 
         boolean dimmed = "dim".equals(s.optString("screen"));
         dim.setVisibility(dimmed ? View.VISIBLE : View.GONE);

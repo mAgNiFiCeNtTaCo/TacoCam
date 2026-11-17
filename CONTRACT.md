@@ -56,6 +56,22 @@ Other stations do not commit; the orchestrator snapshots at the end.
   The fake phone (`pc/tools/fake_phone.py`) listens on 127.0.0.1:47777 and is reached this way; an address
   that is this PC itself (127.0.0.1, ::1) needs no code unless the fake phone was started with `--code`.
 
+- **Android (added 2026-11-17):** the Android app (`android/`, Android 11+) listens on TCP 47777 on the phone's
+  **loopback address only**; the PC reaches it over the USB cable with adb (`pc/tacocam/adb.py`): `adb devices -l`
+  -> `adb install -r -g` when the app is missing or older (versionCode from `TacoCam.version` /
+  `android/version.properties`) -> `adb shell am start` -> `adb forward tcp:0 tcp:47777` -> TCP to
+  127.0.0.1:<port>. adb needs USB debugging on (once, on the phone) and the PC allowed once ("Allow USB
+  debugging?"). Installs over adb don't need Google's developer verification.
+  Other apps on the phone can reach loopback too, so **every** Android connection must pass **Pairing**
+  (section 2), USB or not. The app makes its code on first start and writes it to
+  `/sdcard/Android/data/com.tacocam.app/files/pairing.txt`, which adb's shell can read and other apps can't (Android
+  11+ storage rules); the PC reads it there (`adb shell cat`), so nobody types it. The phone also shows it.
+  No Wi-Fi mode on Android. HELLO from the Android app: `{"proto":1,"app":"TacoCam","version":"1.0",
+  "platform":"android","device":"Google Pixel 8","android":"15"}`. STATE `app_expires` is null (no 7-day limit).
+  "manual" focus / exposure / white balance mean HOLD (focus once then lock, AE lock, AWB lock), as on the iPhone's
+  combined back camera; anti_flicker = the camera's antibanding mode. Zoom = Camera2 CONTROL_ZOOM_RATIO on the
+  back camera that zooms out furthest (0.5x where the phone exposes its ultra-wide that way).
+
 ## 2. Framing (both directions, after the transport is open)
 
 Every message: `u32 big-endian N` (length of what follows) + `u8 type` + `N-1` bytes payload.
@@ -217,7 +233,7 @@ Settings file: `D:\ClaudeProjects\Webcam\settings.json` (gitignored), written by
 {
   "phone": { ...section 4 ... },
   "pc": {
-    "connect": "usb",               // "usb" | "wifi"
+    "connect": "usb",               // "usb" (iPhone) | "android" (added 2026-11-17) | "wifi"
     "wifi_host": "",                // phone IP for "wifi"; "127.0.0.1" = fake phone
     "wifi_code": "",                // (added 2026-11-11) pairing code shown in the phone app (Settings > Wi-Fi); needed
                                     // for every Wi-Fi address that is not this PC itself (section 2, Pairing)
@@ -229,6 +245,8 @@ Settings file: `D:\ClaudeProjects\Webcam\settings.json` (gitignored), written by
     "vcam_name": "Taco Cam",
     "when_disconnected": "card",    // "card" (a "Taco Cam: waiting for iPhone" picture) | "last" (freeze last frame) | "black"
     "preview_turn": 0,              // (added 2026-11-08) clockwise turn of the picture in the Taco Cam window only: 0|90|180|270
+    "welcome": false,               // (added 2026-11-17) open the "Get started" window when Taco Cam starts
+    "obs_setup_done": false,        // (added 2026-11-17) the "Set up OBS" step ran (pc/tacocam/obssetup.py)
     "check_on_live": true           // (added 2026-10-26) run the pre-show check (precheck.py) when OBS starts streaming;
                                     // beep if the picture stops while live (OBS websocket, read-only GetStreamStatus)
   }

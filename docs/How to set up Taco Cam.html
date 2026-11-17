@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taco Cam Setup</title>
+<style>
+  :root { --bg: #fbfaf7; --fg: #1f1d1a; --muted: #5f5a52; --card: #ffffff; --line: #e4dfd5; --accent: #c4610f;
+          --good: #2e7d32; --key: #f1ece3; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1c1b19; --fg: #ece8e1; --muted: #a8a196; --card: #262421; --line: #3a3732; --accent: #f0913a;
+            --good: #7cc47f; --key: #33302b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.55 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  h2 { font-size: 22px; margin: 36px 0 10px; padding-top: 18px; border-top: 1px solid var(--line); }
+  h3 { font-size: 18px; margin: 18px 0 6px; }
+  p, li { margin: 6px 0; }
+  .lead { color: var(--muted); margin-bottom: 18px; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
+  .step b.n { color: var(--accent); }
+  .tip { color: var(--muted); font-size: 15px; }
+  kbd, .ui { background: var(--key); border-radius: 5px; padding: 1px 6px; font-weight: 600; white-space: nowrap; }
+  ol, ul { padding-left: 24px; }
+  .good { color: var(--good); font-weight: 600; }
+  dt { font-weight: 700; margin-top: 14px; }
+  dd { margin: 4px 0 0 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Taco Cam: set it up</h1>
+<p class="lead">Taco Cam turns your Android phone into the camera for your Whatnot stream in OBS. The phone plugs
+into the PC with its USB cable. Do the setup once. After that it's plug in and go.</p>
+
+<h2>What you need</h2>
+<ul>
+  <li>A Windows 10 or 11 PC with <b>OBS Studio</b> on it (free from obsproject.com). Open OBS once and close it
+      before you start.</li>
+  <li>An <b>Android phone with Android 11 or newer</b>, and a USB cable that carries data. Some cheap cables only
+      charge. If the PC doesn't notice the phone at all, try another cable.</li>
+  <li>The file <b>TacoCam.zip</b>.</li>
+</ul>
+
+<h2>1. Unzip and start Taco Cam</h2>
+<div class="step">
+  <p><b class="n">a.</b> Right-click <b>TacoCam.zip</b> and click <span class="ui">Properties</span>. If there's an
+     <span class="ui">Unblock</span> box at the bottom, tick it and click <span class="ui">OK</span>. That stops
+     Windows asking about the files later.</p>
+  <p><b class="n">b.</b> Right-click <b>TacoCam.zip</b> again, click <span class="ui">Extract All...</span>, then
+     <span class="ui">Extract</span>. Put it somewhere it can stay, like <b>Documents</b>. A folder called
+     <b>Taco Cam</b> opens.</p>
+  <p><b class="n">c.</b> Double-click <b>Start Taco Cam</b>. The Taco Cam window opens, with a smaller window called
+     <b>Get started</b> on top of it.</p>
+  <p class="tip">If Windows asks whether to run it, click <span class="ui">Run</span>. If it says "Windows protected
+     your PC", click <span class="ui">More info</span>, then <span class="ui">Run anyway</span>. Windows asks
+     because the start file is new to it. The programs inside are signed by the Python Software Foundation
+     and by Google.</p>
+</div>
+
+<h2>2. The three steps in "Get started"</h2>
+<p>Each step turns green when it's done. You can open this window again any time with the
+   <span class="ui">Get started</span> button under the picture.</p>
+
+<div class="step">
+  <h3>Step 1: Install the Taco Cam camera</h3>
+  <p>Click <span class="ui">Install the camera</span>. Windows asks "Do you want to allow this app to make changes
+     to your device?" Click <span class="ui">Yes</span>. When the black window says "Done", press a key to close
+     it, then close Taco Cam and start it again.</p>
+  <p class="tip">This is what lets OBS see Taco Cam as a camera. You only do it once. The black window also says to
+     add a "Video Capture Device" in OBS: skip that, step 3 adds the camera for you.</p>
+</div>
+
+<div class="step">
+  <h3>Step 2: Connect the phone</h3>
+  <p>The phone needs one setting switched on, called <b>USB debugging</b>. It lets the PC put the Taco Cam app
+     on the phone and talk to it over the cable.</p>
+  <ol>
+    <li>On the phone open <span class="ui">Settings</span> &gt; <span class="ui">About phone</span>. Tap
+        <span class="ui">Build number</span> 7 times. It says "You are now a developer".
+        <br><span class="tip">Samsung: Settings &gt; About phone &gt; Software information &gt; Build number.</span></li>
+    <li>Go back to Settings and open <span class="ui">Developer options</span>. On most phones it's under
+        <span class="ui">Settings</span> &gt; <span class="ui">System</span>. On Samsung it's at the bottom of
+        Settings. Switch on <span class="ui">USB debugging</span>.</li>
+    <li>Plug the phone into the PC. The phone asks "Allow USB debugging?". Tick
+        <span class="ui">Always allow from this computer</span> and tap <span class="ui">Allow</span>.</li>
+  </ol>
+  <p>That's it. Taco Cam installs its app on the phone and opens it, which takes about 10 seconds. The phone
+     shows the camera and "Connected to the PC", and the Taco Cam window shows the picture.</p>
+  <p class="tip">Xiaomi, Redmi and POCO phones also need <span class="ui">Install via USB</span> switched on in
+     Developer options.</p>
+</div>
+
+<div class="step">
+  <h3>Step 3: Set up OBS</h3>
+  <p>Close OBS first. Then click <span class="ui">Set up OBS</span>. It makes a profile and scene collection
+     called <b>Taco Cam Whatnot</b>:</p>
+  <ul>
+    <li>the tall 1080 x 1920 picture Whatnot uses</li>
+    <li>Whatnot's stream settings</li>
+    <li>the Taco Cam camera already in the "Live" scene, turned the right way</li>
+    <li>your microphone</li>
+  </ul>
+  <p>If OBS's connection for other programs was off, Taco Cam switches it on and shows you its password.
+     It also copies the password, so you can paste it. Whatnot's Show Tools asks for this password.
+     You can find it again in OBS under <span class="ui">Tools</span> &gt;
+     <span class="ui">WebSocket Server Settings</span>.</p>
+  <p>Open OBS. You should see the "Live" scene with your phone's picture filling it.</p>
+</div>
+
+<h2>3. Every show</h2>
+<ol>
+  <li>Start Taco Cam (double-click <b>Start Taco Cam</b>).</li>
+  <li>Plug in the phone and unlock it. The Taco Cam app opens by itself. Leave it on the phone's screen. Android
+      stops the camera of apps that aren't on screen. The <span class="ui">Dim</span> button on the phone darkens
+      its screen to save battery.</li>
+  <li>Open OBS.</li>
+  <li>On whatnot.com, in Chrome, open <b>Show Tools</b> for your show. Connect OBS with the password from step 3,
+      then click <b>Update Profile</b>. Whatnot fills in your stream key.</li>
+  <li>Click <span class="ui">Pre-show check</span> in Taco Cam. It lists anything that still needs fixing, like
+      a phone that isn't charging, a phone that's too hot, or a missing camera. It also runs by itself when OBS
+      starts streaming.</li>
+</ol>
+<p class="tip">Turn on Do Not Disturb on the phone. A call would take the camera away in the middle of the show.</p>
+
+<h2>If something's wrong</h2>
+<dl>
+  <dt>Taco Cam says "Plug the Android phone into this PC" but the phone is plugged in</dt>
+  <dd>Try another USB cable or another USB port. On the phone, pull down from the top and tap the USB message; pick
+      <b>File transfer</b>. Check USB debugging is still on. Samsung phones may need Samsung's USB driver on the PC
+      (search "Samsung Android USB driver" on samsung.com).</dd>
+
+  <dt>The phone never asked "Allow USB debugging?"</dt>
+  <dd>Unplug the phone and plug it in again with the phone unlocked. Still nothing: in Developer options tap
+      <b>Revoke USB debugging authorizations</b>, then plug it in again.</dd>
+
+  <dt>Taco Cam says "the phone blocked installing over USB"</dt>
+  <dd>On Xiaomi, Redmi or POCO switch on <b>Install via USB</b> in Developer options (it may ask you to sign in to a
+      Mi account), then unplug and plug the phone in again.</dd>
+
+  <dt>The picture is sideways in OBS</dt>
+  <dd>Taco Cam sends a wide picture on purpose, and the OBS scene turns it. In Taco Cam's
+      <span class="ui">Output (OBS)</span> tab, <b>Rotate</b> must stay on <b>0</b>. If you added the camera to
+      OBS yourself, click <span class="ui">Set up OBS</span> again.</dd>
+
+  <dt>The Whatnot web page shows a sideways, zoomed camera with no overlays</dt>
+  <dd>The Whatnot tab in your browser is using the Taco Cam camera itself instead of your OBS stream. Click the
+      camera icon in the address bar, set Camera to <b>Block</b> for whatnot.com, and reload the page.</dd>
+
+  <dt>The picture freezes or the phone says the camera stopped</dt>
+  <dd>Keep the Taco Cam app on the phone's screen, and close video-call apps. If the phone is hot, take it out of
+      its case and use the <span class="ui">Dim</span> button.</dd>
+
+  <dt>My browser or antivirus says "Virus detected"</dt>
+  <dd>That's a false alarm about the zip. Every program in it is signed by the Python Software Foundation or
+      Google. Taco Cam's own part is plain text files you can read. Ask the person who sent it for a fresh copy,
+      or let your antivirus keep the file.</dd>
+</dl>
+
+<h2>Removing Taco Cam</h2>
+<ul>
+  <li>The camera: in the Taco Cam folder open <b>pc</b> &gt; <b>vcam</b> and double-click
+      <b>Uninstall Taco Cam camera</b>.</li>
+  <li>The PC program: delete the Taco Cam folder.</li>
+  <li>The phone: uninstall the Taco Cam app like any app, and switch off USB debugging if you like.</li>
+  <li>OBS: the <b>Taco Cam Whatnot</b> profile and scene collection can be removed from OBS's Profile and Scene
+      Collection menus.</li>
+</ul>
+</main>
+</body>
+</html>

@@ -14,6 +14,7 @@ from tkinter import messagebox, simpledialog, ttk
 import queue
 import threading
 
+from . import obssetup
 from . import precheck
 from . import presets as P
 from . import shortcuts
@@ -105,6 +106,38 @@ def describe_expiry(expires, now=None):
         left = f"{max(1, round(hours))} h" if hours < 24 else "2 days"
         return f"iPhone app stops opening in {left} ({local}): reinstall it with iloader", (BAD if hours < 12 else WARN)
     return f"iPhone app good until {local}", MUTED
+
+
+def setup_steps(st, settings):
+    """The "Get started" steps: [(key, done, detail text, button text or None)]. Pure, for the window and tests."""
+    st = st or {}
+    pc = (settings or {}).get("pc") or {}
+    android = pc.get("connect") == "android"
+    vc_ok = st.get("vcam") == "running" and st.get("vcam_backend") == "unitycapture"
+    if vc_ok:
+        cam = ("camera", True, 'OBS can see the "Taco Cam" camera.', None)
+    else:
+        cam = ("camera", False, 'Lets OBS see Taco Cam as a camera. Windows asks for permission once; '
+               'afterwards close Taco Cam and open it again.', "Install the camera")
+    connected = st.get("link") == "connected"
+    if connected:
+        phone = ("phone", True, f"Connected to {st.get('device_name') or 'the phone'}.", None)
+    elif android:
+        steps = ("On the phone: Settings > About phone > tap \"Build number\" 7 times. Then Settings > System > "
+                 "Developer options > switch on \"USB debugging\". Plug the phone into this PC and tap \"Allow\". "
+                 "Taco Cam then installs its app on the phone and opens it.")
+        now = describe_status(st)["conn"] if st.get("transport") == "android" else ""
+        phone = ("phone", False, (now + "\n" if now else "") + steps, None)
+    else:
+        phone = ("phone", False, "Plug in the iPhone with the Taco Cam app open, or use an Android phone.",
+                 "Use an Android phone")
+    if pc.get("obs_setup_done"):
+        obs = ("obs", True, 'OBS opens on the "Taco Cam Whatnot" profile and scenes. Click again to redo it.',
+               "Set up OBS again")
+    else:
+        obs = ("obs", False, "Makes a Whatnot-ready profile and scene in OBS with the Taco Cam camera already "
+               "placed. Close OBS first.", "Set up OBS")
+    return [cam, phone, obs]
 
 
 def describe_status(st, vcam_name="Taco Cam", now=None):
@@ -270,6 +303,8 @@ class App:
         self._lost_since = None        # picture missing while live, since (monotonic)
         self._lost_alerted = False
         self.check_win = None
+        self.setup_win = None
+        self._setup_shown = None
         self._check_shown = None
         self._check_next = 0.0
         self._check_why = ""
@@ -295,6 +330,8 @@ class App:
         self.update_enabled()
         if autostart:
             self.start()
+        if self.settings["pc"].get("welcome"):
+            self.root.after(300, self.open_setup)
 
     # ---- lifecycle
     def start(self):
@@ -379,6 +416,9 @@ class App:
                                "(Ctrl+Alt+0 from any program).")
         self.check_btn = ttk.Button(self.preset_bar, text="Pre-show check", command=lambda: self.open_check())
         self.check_btn.pack(side="right", padx=(0, 6))
+        self.setup_btn = ttk.Button(self.preset_bar, text="Get started", command=lambda: self.open_setup())
+        self.setup_btn.pack(side="right", padx=(0, 6))
+        Tooltip(self.setup_btn, "The three setup steps: the Taco Cam camera for OBS, the phone, and OBS itself.")
         Tooltip(self.check_btn, "Checks everything before you go live: phone, charger, heat, app expiry, 1080p, "
                                 "the OBS camera and the card scanner. Also runs by itself when OBS starts streaming.")
 
@@ -827,6 +867,8 @@ class App:
         self._show_background_status(snap)
         if self.check_win is not None and time.monotonic() >= self._check_next:
             self._fill_check()
+        if self.setup_win is not None:
+            self._fill_setup()
 
     def _tab_extras(self):
         p = self._page("Extras")
@@ -940,6 +982,109 @@ class App:
                       width=2).grid(row=i, column=0, sticky="nw")
             ttk.Label(self._check_rows, text=text, foreground=FG if level != precheck.INFO else MUTED,
                       wraplength=520, justify="left").grid(row=i, column=1, sticky="w", pady=1)
+
+    # ---- "Get started": the three setup steps (opens by itself while pc.welcome is on)
+    def open_setup(self):
+        if self.setup_win is None:
+            w = tk.Toplevel(self.root)
+            w.title("Taco Cam: get started")
+            w.configure(bg=PANEL)
+            w.resizable(False, False)
+            w.protocol("WM_DELETE_WINDOW", self.close_setup)
+            body = ttk.Frame(w, padding=(18, 14))
+            body.pack(fill="both", expand=True)
+            ttk.Label(body, text="Get started with Taco Cam", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+            ttk.Label(body, text="Do these three steps once. Each turns green when it is done.",
+                      style="Muted.TLabel").pack(anchor="w", pady=(0, 8))
+            self._setup_rows = {}
+            for key, title in (("camera", "1. Install the Taco Cam camera"), ("phone", "2. Connect the phone"),
+                               ("obs", "3. Set up OBS")):
+                box = ttk.Frame(body, padding=(0, 6))
+                box.pack(fill="x")
+                mark = ttk.Label(box, text="", font=("Segoe UI", 13, "bold"), width=2)
+                mark.grid(row=0, column=0, rowspan=2, sticky="nw")
+                ttk.Label(box, text=title, font=("Segoe UI", 11, "bold")).grid(row=0, column=1, sticky="w")
+                detail = ttk.Label(box, text="", wraplength=470, justify="left")
+                detail.grid(row=1, column=1, sticky="w")
+                btn = ttk.Button(box, text="", style="Accent.TButton",
+                                 command=lambda k=key: self._setup_action(k))
+                btn.grid(row=0, column=2, rowspan=2, sticky="e", padx=(10, 0))
+                box.columnconfigure(1, weight=1)
+                self._setup_rows[key] = (mark, detail, btn)
+            self._setup_done_label = ttk.Label(body, text="", wraplength=520, justify="left")
+            self._setup_done_label.pack(anchor="w", pady=(10, 6))
+            row = ttk.Frame(body)
+            row.pack(fill="x")
+            ttk.Button(row, text="Close", command=self.close_setup).pack(side="right")
+            self.setup_win = w
+            self._setup_shown = None
+        self._fill_setup()
+        self.setup_win.deiconify()
+        self.setup_win.lift()
+
+    def close_setup(self):
+        w, self.setup_win = self.setup_win, None
+        if self.settings["pc"].get("welcome"):
+            self.apply({"pc": {"welcome": False}})
+        if w is not None:
+            try:
+                w.destroy()
+            except tk.TclError:
+                pass
+
+    def _fill_setup(self):
+        steps = setup_steps(self._status, self.settings)
+        if self.setup_win is None or steps == self._setup_shown:
+            return
+        self._setup_shown = steps
+        for key, done, detail, button in steps:
+            mark, label, btn = self._setup_rows[key]
+            mark.configure(text="\u2713" if done else "\u2022", foreground=GOOD if done else WARN)
+            label.configure(text=detail)
+            if button:
+                btn.configure(text=button)
+                btn.grid()
+            else:
+                btn.grid_remove()
+        if all(done for _k, done, _d, _b in steps):
+            self._setup_done_label.configure(
+                text="All set. Open OBS, then in Whatnot open Show Tools and click Update Profile before each show. "
+                     "The Pre-show check button tells you if anything is missing before you go live.",
+                foreground=GOOD)
+        else:
+            self._setup_done_label.configure(text="")
+
+    def _setup_action(self, key):
+        if key == "camera":
+            self.install_vcam()
+        elif key == "phone":
+            if self.settings["pc"].get("connect") != "android":
+                self.ctl["pc.connect"].select("android")
+        elif key == "obs":
+            self.setup_obs()
+
+    def setup_obs(self):
+        try:
+            res = obssetup.setup()
+        except obssetup.SetupProblem as e:
+            messagebox.showwarning("Taco Cam", str(e), parent=self.setup_win or self.root)
+            return None
+        except OSError as e:
+            messagebox.showerror("Taco Cam", f"OBS could not be set up: {e}", parent=self.setup_win or self.root)
+            return None
+        self.apply({"pc": {"obs_setup_done": True}})
+        self.log(f'OBS set up: profile and scene collection "{res["profile"]}"')
+        text = (f'OBS is set up: profile and scene collection "{res["profile"]}", with the Taco Cam camera '
+                f"filling the tall Whatnot picture.\n\nOpen OBS now.")
+        if res.get("websocket_password"):
+            self.root.clipboard_clear()
+            self.root.clipboard_append(res["websocket_password"])
+            text += (f'\n\nWhatnot\'s Show Tools connects to OBS and asks for OBS\'s password. It is:\n\n'
+                     f'    {res["websocket_password"]}\n\n(copied, so you can paste it there; port '
+                     f'{res["websocket_port"]}). OBS also shows it under Tools > WebSocket Server Settings.')
+        messagebox.showinfo("Taco Cam", text, parent=self.setup_win or self.root)
+        self._fill_setup()
+        return res
 
     def _beep(self):
         try:

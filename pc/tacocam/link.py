@@ -329,7 +329,8 @@ class Link:
         proved = False
         problem = None
         out = queue.Queue()
-        self._set_state("connecting", transport, name, None, say=f"Connecting to the iPhone ({transport})")
+        word = "phone" if transport == "android" else "iPhone"
+        self._set_state("connecting", transport, name, None, say=f"Connecting to the {word} ({transport})")
         writer = threading.Thread(target=self._writer, args=(sock, out), name="tacocam-link-writer", daemon=True)
         writer.start()
         self._out = out
@@ -351,7 +352,7 @@ class Link:
                     last_ping = now
                     out.put(protocol.encode(protocol.PING, struct.pack(">Q", time.monotonic_ns())))
                 if now - last_rx > DEAD_AFTER:
-                    reason = "no answer from the iPhone for 5 s"
+                    reason = f"no answer from the {word} for 5 s"
                     break
                 if connected and not sent_set and hello_at is not None and now - hello_at > 2.0:
                     sent_set = self._send_all_settings(out)  # phone sent HELLO but no STATE: send anyway
@@ -442,7 +443,7 @@ class Link:
             if connected:
                 self._call("on_disconnected")
             if not self._stop.is_set():
-                self.log(f"iPhone disconnected: {reason}")
+                self.log(f"{'Phone' if transport == 'android' else 'iPhone'} disconnected: {reason}")
                 self._last_logged = None
                 self._set_state("searching", transport, None, None)
         return problem
