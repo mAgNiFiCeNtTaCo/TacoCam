@@ -1,6 +1,7 @@
 # Webcam (Taco Cam)
 
-Our own iPhone-as-webcam app (like Iriun, plus a 0.5x ultra-wide zoom-out), used over the USB cable to feed
+Our own iPhone-as-webcam app (like Iriun, plus a 0.5x ultra-wide zoom-out; an Android app since 2026-11-17 for a
+friend's copy, `dist/TacoCam.zip`), used over the USB cable to feed
 OBS for the user's Whatnot box-break stream (portrait 1080x1920 canvas). The user isn't a programmer:
 explain in plain words and finish jobs end to end.
 
@@ -13,6 +14,12 @@ explain in plain words and finish jobs end to end.
 
 ## Layout
 - `ios/`: Swift app (XcodeGen `project.yml`), built only on GitHub Actions (`.github/workflows/ios.yml`).
+- `android/`: Android app (plain Java, Camera2 + MediaCodec, Android 11+), same protocol; `.github/workflows/android.yml`
+  builds it, runs its tests and an emulator end-to-end test (`pc/tools/android_e2e.py`). PC side: `pc/tacocam/adb.py`
+  (install, open, read the code, forward) and connect mode "android" in `link.py`.
+- Friend's copy: `python pc/tools/build_portable.py` -> `dist/TacoCam.zip` (signed embeddable Python + tkinter, Google's
+  adb, release-signed APK, `pc/tools/friend_settings.json`, guide `docs/How to set up Taco Cam.html`). Its Get started
+  window (`app.py`) and `pc/tacocam/obssetup.py` make the "Taco Cam Whatnot" OBS profile + scene (OBS closed).
 - `pc/tacocam/`: engine (protocol, usbmux, link, decoder, pipeline, vcam, engine) + window (app, settings, ui_widgets).
 - `pc/tacocam/assets/taco-cam.ico`: window/taskbar icon, drawn by `pc/tools/make_icon.py`. `__main__.py` sets the
   AppUserModelID `TacoCam.PC` (else Windows groups it with other pythonw apps) and uses only `iconbitmap`
@@ -36,6 +43,9 @@ explain in plain words and finish jobs end to end.
 
 ## Rules
 - Never read `%APPDATA%\obs-studio\basic\profiles\*\service.json` (Whatnot bearer token).
+- Android release key: `D:\DevTools\tacocam-release.jks` + `tacocam-keystore.properties` (secrets: never open, print
+  or commit; the build reads them through `TACOCAM_KEYSTORE`). Losing them means updates won't install over a
+  friend's copy.
 - Don't change OBS's stream output settings: they are Whatnot's required WHIP setup (x264 veryfast/zerolatency,
   CBR 3500, keyframe 2 s, Opus). Amazon IVS drops streams with B-frames or over 8.5 Mbps.
 - The window saves `settings.json` on close: close it (WM_CLOSE) before editing the file, then reopen. Ask before
@@ -49,6 +59,9 @@ explain in plain words and finish jobs end to end.
   or names. Swift is only compiled on GitHub: read it carefully before each push.
 
 ## Gotchas
+- No Android emulator on this PC (no hardware acceleration): the end-to-end test runs only on GitHub. Gradle: call
+  `android\gradlew.bat` by full path (NoDefaultCurrentDirectoryInExePath). Embeddable Python's `_tkinter` also needs
+  `libtommath.dll` + `zlib1.dll`. Defender is off here, so the zip can't be virus-scanned locally.
 - The Whatnot scanner is tuned for 1080p: keep the phone at 1080p (it shrinks 4K, which found no cards).
 - Tests must never use the real feed name: conftest sets TACOCAM_FEED_NAME per test run. Windows made by tests
   must never talk to the real OBS: conftest swaps app.ObsFollower for QuietObs.

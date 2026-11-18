@@ -255,6 +255,31 @@
       "lessons": [
         "Work done in a project from another project's folder leaves its log and card stale: the next save in the project logs it"
       ]
+    },
+    {
+      "title": "Android phone app + a friend's copy (TacoCam.zip)",
+      "date": "2026-11-17",
+      "summary": "One session built the Android app, the PC's Android (USB) mode, a Get started window with one-click OBS setup and a signed portable zip for a friend; GitHub's emulator test passes.",
+      "stages": [
+        {
+          "name": "Build",
+          "kind": "solo",
+          "sessions": [
+            {
+              "id": "d8f52793",
+              "role": "Webcam session",
+              "start": "2026-11-17T13:53",
+              "end": "2026-11-18T00:15",
+              "did": "Android app (Java, Camera2/MediaCodec), adb install + connect, Get started window, obssetup, build_portable -> TacoCam.zip, guide; emulator E2E PASS (run 44171623445), 340 PC + 16 Android tests; slop check; also set Opus for Random Questions and BabyG_Discord",
+              "outcome": "done",
+              "files": 45
+            }
+          ]
+        }
+      ],
+      "lessons": [
+        "No hardware acceleration for an Android emulator on this PC: run the end-to-end test on GitHub Actions"
+      ]
     }
   ]
 }

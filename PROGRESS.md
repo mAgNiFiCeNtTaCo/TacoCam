@@ -4,7 +4,7 @@ Taco Cam: our own iPhone-as-USB-webcam app (what Iriun Webcam does, every featur
 zoom-out). An iPhone app sends H.264/HEVC over the USB cable; a PC window shows it and feeds OBS through a
 DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break stream.
 
-## Where it stands (2026-11-11)
+## Where it stands (2026-11-17)
 - **In use**: iPhone 11 (iOS 27.0.1) over USB into OBS (Whatnot scene) and into the Whatnot card scanner.
 - iPhone app: GitHub Actions build (last green run 40258964830), `dist/TacoCam.ipa` (gitignored) installed with
   **iloader**; reinstalled 2026-11-08, so 7 days runs to ~2026-11-15 (bottom bar shows the date, orange 2 days
@@ -24,11 +24,51 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   in `dist/TacoCam.ipa`.
 - 2026-11-08: Preview turn (Output tab) stands the picture upright in the window only; set to 90, window restarted
   on the new code. OBS still gets 1920x1080 rotate 0.
+- 2026-11-17: Android phone app (`android/`, Android 11+) and PC "Android (USB)" mode; a friend's copy
+  `dist/TacoCam.zip` (`python pc/tools/build_portable.py`) with a Get started window and one-click OBS setup.
+  Emulator test on GitHub passes; not yet tried on a real Android phone. PC tests 340.
 - Open: confirm the turned preview by eye; test glide / pause reasons on the real phone; front camera /
   upright check (`docs/QA.md`); scanner card finding on a busy background (54 failed frames in Whatnot
   `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-11-17: Android phone app + a friend's copy (TacoCam.zip)
+- The user's ask: "build this out same as we did for OBS Doctor": a copy a friend can install without virus /
+  unsafe-program warnings, with the user's profile built in, for an Android phone connected and installed in one
+  click. Choices (asked): Taco Cam + OBS setup, phone brand unknown (all brands), a zip like OBS Doctor.
+- **Android app** (`android/`, plain Java, Camera2 + MediaCodec, minSdk 30, AGP 9.4.1, Gradle 9.8.2): same protocol
+  as the iPhone (CONTRACT), widest camera for 0.5x, SPS/PPS before every keyframe, no B-frames. Server on the phone's
+  loopback only and pairing always on; the code is written to the app's own folder where only `adb shell` can read it.
+  16 unit tests. Release key `D:\DevTools\tacocam-release.jks` + `tacocam-keystore.properties` (secrets, never
+  committed; back them up, or updates won't install over the friend's copy).
+- **PC "Android (USB)" mode** (`pc/tacocam/adb.py`, `link.py`): finds the phone with adb, installs or updates the app
+  (`install -r -g`), grants the camera, opens it, reads the code and forwards the port. Waiting cards and pre-show
+  check words say "phone"/Android.
+- **Get started window** (`app.py`, opens by itself on a friend's copy): install camera, connect phone, set up OBS.
+  **`obssetup.py`**: with OBS closed, writes the "Taco Cam Whatnot" profile (1080x1920, x264 CBR 3500, keyframe 2 s,
+  veryfast/zerolatency, no B-frames, Opus, WHIP service with no key) and scene (Taco Cam turned 90 + mic), switches
+  OBS to them, turns obs-websocket on with a new password if it was off; backs up replaced files. Never reads
+  service.json. The user's own OBS was not touched.
+- **`pc/tools/build_portable.py`** -> `dist/TacoCam.zip` (117.7 MB): python.org's signed embeddable Python 3.14.7 +
+  tkinter, the packages, Google's adb, the release-signed APK, `friend_settings.json`, `Start Taco Cam.cmd`, the guide
+  `docs/How to set up Taco Cam.html`. No new .exe; every program's signature is checked; the unzipped copy is tested.
+- Friend's settings: 1080p, 30 fps (not the user's 60: unknown PC), H.264 16 Mbps, auto white balance, presets Wide
+  Table 0.5x and Close UP 1.6x.
+- **Tests:** GitHub `android.yml` builds the app and runs an emulator end to end (install, connect with pairing,
+  720p H.264 decoded, zoom round trip): PASS, final run 44171623445. PC tests 340 pass; zip test PASSED.
+  `/slop-check Webcam diff`: 0 scanner hits, 2 spots fixed by reading (AI_SlopAgent/reports/2026-11-17-Webcam.md).
+- Bugs on the way: unquoted colon in a workflow step name (0 s failure, adbfec3); `_tkinter` needed libtommath.dll +
+  zlib1.dll; gradlew.bat needs its full path (NoDefaultCurrentDirectoryInExePath); no local emulator (no hardware
+  acceleration here), so the emulator runs only on GitHub.
+- Commits 4470c6d, adbfec3, 88e37f7, pushed.
+- Side jobs for the user (other projects, no code changed): Claude Code model set to Opus for `Random Questions` and
+  `BabyG_Discord` (`.claude/settings.json` in each, `"model": "opus"`; the user default stays Fable).
+- Resources 2026-11-18 00:12: Webcam 2 processes, CPU 60% of a core (1.9% of the PC), RAM 339 MB, GPU 0%; whole PC
+  CPU 6% of 32 threads, RAM 23.9 of 64 GB, GPU 25%.
+- Open: a real Android phone (brand unknown; Samsung may need its USB driver); an antivirus scan of the zip (Defender
+  is off on this PC; VirusTotal only with the user's OK, it shares the file); the friend's OBS version and Whatnot
+  "Update Profile" flow.
+
 ### 2026-11-11: USB only by default, Wi-Fi with a pairing code (security fix)
 - Done by a Security_Agent_Audit session (1b98f3aa, fix round for the 2026-10-28 audit), on the user's "do it";
   logged here by the Webcam session. Commit a13b7a6, pushed; iPhone build GitHub run 43106745840 green (Swift
