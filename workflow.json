@@ -280,6 +280,28 @@
       "lessons": [
         "No hardware acceleration for an Android emulator on this PC: run the end-to-end test on GitHub Actions"
       ]
+    },
+    {
+      "title": "Real Android phone test set up (not run yet)",
+      "date": "2026-11-23",
+      "summary": "Unzipped the friend's copy into a test folder and gave the user the real-phone test steps.",
+      "stages": [
+        {
+          "name": "Prep",
+          "kind": "solo",
+          "sessions": [
+            {
+              "id": "d8f52793",
+              "role": "Webcam session",
+              "start": "2026-11-18T03:05",
+              "end": "2026-11-23T00:55",
+              "did": "Status review, test copy in build/friend-test, phone test steps; Network_Setup set to Opus",
+              "outcome": "done",
+              "files": 2
+            }
+          ]
+        }
+      ]
     }
   ]
 }

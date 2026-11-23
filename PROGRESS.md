@@ -32,6 +32,19 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-11-23: Real Android phone test set up (not run yet)
+- 2026-11-18: the user has an Android phone to test with. `dist/TacoCam.zip` unzipped to
+  `build/friend-test/Taco Cam/` (gitignored) so the test uses exactly the friend's copy, with its own settings.json
+  (the user's settings and OBS untouched). Steps given: Build number x7 + USB debugging, close the user's own window
+  (not while live), Start Taco Cam, Get started steps 1-2, **skip step 3** (it would switch the user's OBS to the
+  friend's profile; test it separately without touching their OBS).
+- 2026-11-23: not started yet (no log in the test folder, settings unchanged). The user's own window still runs the
+  code from 2026-11-16, before Android; restarting it after the test picks up the new code.
+- To report back: phone brand/model, whether the picture shows, what the window said if stuck, whether 0.5x is wide.
+- Side job 2026-11-18 (another project, no code): `Network_Setup` set to Opus (`.claude/settings.json`).
+- Resources 2026-11-23 00:50: Webcam 2 processes, CPU 71% of a core (2.2% of the PC), RAM 126 MB, GPU 0%; whole PC
+  CPU 20% of 32 threads, RAM 25.4 of 64 GB, GPU 34%.
+
 ### 2026-11-17: Android phone app + a friend's copy (TacoCam.zip)
 - The user's ask: "build this out same as we did for OBS Doctor": a copy a friend can install without virus /
   unsafe-program warnings, with the user's profile built in, for an Android phone connected and installed in one
