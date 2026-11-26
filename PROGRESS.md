@@ -59,8 +59,9 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   `gh api repos/mAgNiFiCeNtTaCo/TacoCam/commits/99059ad` (404 = gone).
 - Slop check (AI_SlopAgent `reports/2026-11-26-Webcam.md`, two passes): 4 static badges removed, two slogan labels
   made plain; release notes and installer text clean.
-- Still open: real Android phone test (`build/friend-test/`), social preview upload, the demo zoom clip (needs the
-  user's footage), antivirus check, restarting the user's own window on the new code (ask first).
+- Later the same day: demo zoom clip in the README (`docs/images/zoom.webp`, 9 s from the user's Ctrl+Alt+0 clip,
+  9cc4d2a); social preview picture uploaded by the user (GitHub confirms a custom picture).
+- Still open: real Android phone test (`build/friend-test/`), antivirus check, restarting the user's own window on the new code (ask first).
 - Resources 2026-11-26 13:24: Webcam 0 processes (window not running at that moment), disk 808 MB; whole PC CPU 6% of
   32 threads, RAM 26.8 of 64 GB, GPU 30%.
 
