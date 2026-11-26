@@ -53,9 +53,15 @@ You need an iPhone 11 or newer (older iPhones have no 0.5x lens), or an Android 
 
 ## Android phones and giving Taco Cam to a friend
 
-`python pc/tools/build_portable.py` makes `dist\TacoCam.zip` for a friend's Windows PC with an Android phone
-(Android 11 or newer). The friend unzips it and double-clicks **Start Taco Cam**; a **Get started** window walks
-through three steps, each one button:
+**Download it from the [Releases page](https://github.com/mAgNiFiCeNtTaCo/TacoCam/releases)**: two ways to get the
+same Taco Cam onto a Windows PC with an Android phone (Android 11 or newer).
+
+- **TacoCam.zip** (no warnings): unzip it and double-click **Start Taco Cam**.
+- **TacoCam-Setup-1.0.exe** (an installer, with Start menu and desktop icons and an uninstaller): Windows shows
+  "Windows protected your PC" once, because the installer isn't signed with a paid certificate; click
+  **More info**, then **Run anyway**.
+
+Either way a **Get started** window walks through three steps, each one button:
 
 <img src="docs/images/get-started.png" width="520" alt="The Get started window: three steps, each with a tick when done">
 
@@ -68,10 +74,12 @@ through three steps, each one button:
 
 The zip holds python.org's signed Python, Google's signed adb, the phone app and our own code as plain text,
 so antivirus programs don't flag it the way they flag a new unsigned .exe. The friend's step-by-step guide is
-`docs/How to set up Taco Cam.html` (also inside the zip). The zip starts with your settings for Whatnot:
-1080p, 0.5x, OBS output 1920x1080 not turned, the Wide Table and Close UP presets, 30 fps.
+`docs/How to set up Taco Cam.html` (also inside the zip and the installer). Both start with your settings for
+Whatnot: 1080p, 0.5x, OBS output 1920x1080 not turned, the Wide Table and Close UP presets, 30 fps. The installer
+puts Taco Cam in `%LOCALAPPDATA%\Programs\Taco Cam` for that Windows user only, and an update keeps the settings.
 
-Building the zip needs the Android tools in `D:\DevTools\Android` and the app's signing key from
+`python pc/tools/build_portable.py` builds both into `dist\` and tests them (the installer with Inno Setup 6,
+`installer/TacoCam.iss`). It needs the Android tools in `D:\DevTools\Android` and the app's signing key from
 `python android/make_keystore.py` (`D:\DevTools\tacocam-release.jks` + `.properties`: back both up; an
 Android phone only takes an update signed with the same key).
 

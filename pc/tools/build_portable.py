@@ -1,9 +1,15 @@
-"""Build dist\\TacoCam.zip: Taco Cam for a friend's Windows PC with an Android phone. Unzip, double-click
-"Start Taco Cam", and the "Get started" window walks through the rest.
+"""Build dist\\TacoCam.zip and dist\\TacoCam-Setup-<version>.exe: Taco Cam for a friend's Windows PC with an Android
+phone. Unzip and double-click "Start Taco Cam" (or run the installer), and the "Get started" window walks through
+the rest.
 
-    python pc/tools/build_portable.py              build the phone app, the zip, then test the zip
-    python pc/tools/build_portable.py --no-test    build only
-    python pc/tools/build_portable.py --keep-apk   use the phone app that's already built
+    python pc/tools/build_portable.py                  build the phone app, the zip and the installer, test both
+    python pc/tools/build_portable.py --no-test        build only
+    python pc/tools/build_portable.py --keep-apk       use the phone app that's already built
+    python pc/tools/build_portable.py --no-installer   the zip only
+
+The installer (installer/TacoCam.iss, Inno Setup 6) holds the same folder as the zip. Its setup .exe isn't signed
+by anyone (that needs a paid code-signing certificate), so Windows SmartScreen shows "Windows protected your PC"
+once (More info > Run anyway); the zip has no such step. Both go on the GitHub release.
 
 Why a zip with python.org's Python instead of one .exe: antivirus programs and browsers call new unsigned
 one-file .exe programs a virus ("Couldn't download - Virus detected"; OBS Doctor, 2026-11-14). Every program
@@ -39,6 +45,7 @@ REPO = HERE.parents[1]
 BUILD = REPO / "build" / "portable"
 DIST = REPO / "dist"
 ZIP = DIST / "TacoCam.zip"
+ISS = REPO / "installer" / "TacoCam.iss"
 FOLDER = "Taco Cam"
 GUIDE = REPO / "docs" / "How to set up Taco Cam.html"
 SDK = Path(os.environ.get("ANDROID_HOME") or r"D:\DevTools\Android")
@@ -232,21 +239,76 @@ sys.exit(0 if ok else 1)
 """
 
 
+def app_version():
+    for line in (REPO / "android" / "version.properties").read_text(encoding="utf-8").splitlines():
+        if line.startswith("versionName="):
+            return line.split("=", 1)[1].strip()
+    raise SystemExit("android/version.properties has no versionName")
+
+
+def iscc():
+    for p in (Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Inno Setup 6" / "ISCC.exe",
+              Path(r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"), Path(r"C:\Program Files\Inno Setup 6\ISCC.exe")):
+        if p.is_file():
+            return p
+    raise SystemExit("Inno Setup 6 isn't installed: winget install --id JRSoftware.InnoSetup -e")
+
+
+def build_installer():
+    """dist\\TacoCam-Setup-<version>.exe from the zip's folder (build() must have run first)."""
+    stage = BUILD / "stage" / FOLDER
+    ver = app_version()
+    log(f"building the installer (Inno Setup, version {ver})")
+    subprocess.run([str(iscc()), "/Q", f"/DAppVersion={ver}", f"/DStage={stage}", str(ISS)], check=True)
+    exe = DIST / f"TacoCam-Setup-{ver}.exe"
+    log(f"built {exe} ({exe.stat().st_size / 1_000_000:.1f} MB)")
+    return exe
+
+
+def run_smoke(top):
+    """The program's parts with its own Python: window toolkit, packages, adb and the phone app found, the starting
+    settings, and the engine streaming from the test phone."""
+    r = subprocess.run([str(top / "python" / "python.exe"), "-c", SMOKE.format(tools=top / "pc" / "tools")],
+                       cwd=str(top), capture_output=True, text=True, timeout=120)
+    out = (r.stdout + r.stderr).strip()
+    print("\n".join(out.splitlines()[-12:]))
+    return (r.returncode == 0 and f"{FOLDER}\\platform-tools\\adb.exe" in out
+            and f"{FOLDER}\\\\android\\\\TacoCam.apk" in out and "engine: ok" in out)
+
+
 def test(zip_path):
-    """Unzip to a fresh folder and run the program's parts with its own Python: window toolkit, packages, adb and
-    the phone app found, the starting settings, and the engine streaming from the test phone."""
+    """Unzip to a fresh folder and run the smoke checks."""
     where = Path(tempfile.mkdtemp(prefix="tacocam_zip_"))
     try:
         with zipfile.ZipFile(zip_path) as z:
             z.extractall(where)
-        top = where / FOLDER
-        r = subprocess.run([str(top / "python" / "python.exe"), "-c", SMOKE.format(tools=top / "pc" / "tools")],
-                           cwd=str(top), capture_output=True, text=True, timeout=120)
-        out = (r.stdout + r.stderr).strip()
-        print("\n".join(out.splitlines()[-12:]))
-        good = (r.returncode == 0 and f"{FOLDER}\\platform-tools\\adb.exe" in out
-                and f"{FOLDER}\\\\android\\\\TacoCam.apk" in out and "engine: ok" in out)
+        good = run_smoke(where / FOLDER)
         log("zip test: " + ("PASSED" if good else "FAILED"))
+        return good
+    finally:
+        shutil.rmtree(where, ignore_errors=True)
+
+
+def test_installer(exe):
+    """Install silently into a fresh folder (no shortcuts, nothing in the Start menu), run the same smoke checks
+    with the installed Python, then uninstall and check nothing is left."""
+    where = Path(tempfile.mkdtemp(prefix="tacocam_setup_"))
+    top = where / FOLDER
+    try:
+        subprocess.run([str(exe), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOICONS", "/TASKS=",
+                        f"/DIR={top}"], check=True, timeout=300)
+        good = run_smoke(top)
+        subprocess.run([str(top / "unins000.exe"), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                       check=True, timeout=120)
+        for _ in range(60):                      # the uninstaller finishes from a copy of itself
+            if not top.exists():
+                break
+            time.sleep(0.5)
+        left = sorted(str(p.relative_to(top)) for p in top.rglob("*")) if top.exists() else []
+        if left:
+            log("left after uninstalling: " + ", ".join(left[:10]))
+        good = good and not left
+        log("installer test: " + ("PASSED" if good else "FAILED"))
         return good
     finally:
         shutil.rmtree(where, ignore_errors=True)
@@ -256,9 +318,16 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--no-test", action="store_true")
     ap.add_argument("--keep-apk", action="store_true")
+    ap.add_argument("--no-installer", action="store_true")
     a = ap.parse_args()
     z = build(keep_apk=a.keep_apk)
-    return 0 if a.no_test or test(z) else 1
+    exe = None if a.no_installer else build_installer()
+    if a.no_test:
+        return 0
+    good = test(z)
+    if exe:
+        good = test_installer(exe) and good
+    return 0 if good else 1
 
 
 if __name__ == "__main__":

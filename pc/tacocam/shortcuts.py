@@ -76,8 +76,19 @@ def known_folder(csidl):
     return Path(buf.value)
 
 
+def embedded_python(exe=None):
+    """True when Taco Cam runs on the Python that came with it (the friend's zip or the installer): a python.org
+    "embeddable" Python has a python3*._pth file next to python.exe."""
+    folder = Path(exe or sys.executable).parent
+    return any(folder.glob("python3*._pth"))
+
+
 def pythonw():
-    """The pythonw that `Taco Cam.bat` uses (the Windows Store / Python manager alias when present)."""
+    """The pythonw that starts this copy of Taco Cam: the bundled one in the zip / installed copy (a Python the
+    friend installed has none of Taco Cam's packages), else the one `Taco Cam.bat` uses (the Windows Store / Python
+    manager alias when present)."""
+    if embedded_python():
+        return Path(sys.executable).with_name("pythonw.exe")
     alias = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WindowsApps" / "pythonw.exe"
     if alias.exists():
         return alias
@@ -98,7 +109,7 @@ def make(path, args="-m tacocam"):
     link.call(20, wstr, str(pythonw()))                                   # SetPath
     link.call(11, wstr, args)                                             # SetArguments
     link.call(9, wstr, str(PC))                                           # SetWorkingDirectory
-    link.call(7, wstr, "Use your iPhone as the Taco Cam webcam in OBS")   # SetDescription
+    link.call(7, wstr, "Use your phone as the Taco Cam webcam in OBS")   # SetDescription
     link.call(17, [ctypes.c_wchar_p, ctypes.c_int], str(ICON), 0)         # SetIconLocation
 
     store = link.query(IID_IPropertyStore)
@@ -133,3 +144,23 @@ def set_autostart(on):
     elif path.exists():
         path.unlink()
     return path.exists()
+
+
+def points_into(link, folder):
+    """Does this .lnk start a program inside `folder`? (Its target path is stored in the file as text.)"""
+    try:
+        data = Path(link).read_bytes().lower()
+    except OSError:
+        return False
+    name = str(Path(folder)).rstrip("\\").lower() + "\\"
+    return name.encode("utf-16-le") in data or name.encode("mbcs", "replace") in data
+
+
+def remove_autostart_of(folder):
+    """The uninstaller's step: remove the Startup shortcut only when it starts the copy in `folder`, never another
+    Taco Cam on this PC. Returns True when one was removed."""
+    path = startup_shortcut()
+    if path.exists() and points_into(path, folder):
+        path.unlink()
+        return True
+    return False

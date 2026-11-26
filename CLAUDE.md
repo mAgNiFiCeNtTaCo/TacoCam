@@ -17,8 +17,11 @@ explain in plain words and finish jobs end to end.
 - `android/`: Android app (plain Java, Camera2 + MediaCodec, Android 11+), same protocol; `.github/workflows/android.yml`
   builds it, runs its tests and an emulator end-to-end test (`pc/tools/android_e2e.py`). PC side: `pc/tacocam/adb.py`
   (install, open, read the code, forward) and connect mode "android" in `link.py`.
-- Friend's copy: `python pc/tools/build_portable.py` -> `dist/TacoCam.zip` (signed embeddable Python + tkinter, Google's
-  adb, release-signed APK, `pc/tools/friend_settings.json`, guide `docs/How to set up Taco Cam.html`). Its Get started
+- Friend's copy: `python pc/tools/build_portable.py` -> `dist/TacoCam.zip` + `dist/TacoCam-Setup-<ver>.exe` (Inno
+  Setup 6, `installer/TacoCam.iss`, per-user, unsigned so SmartScreen warns once), both tested by the script (signed
+  embeddable Python + tkinter, Google's adb, release-signed APK, `pc/tools/friend_settings.json`, guide
+  `docs/How to set up Taco Cam.html`). Published as GitHub releases (`gh release`). README pictures in `docs/images/`
+  (made with a pretend engine and a test picture, never the real camera). Its Get started
   window (`app.py`) and `pc/tacocam/obssetup.py` make the "Taco Cam Whatnot" OBS profile + scene (OBS closed).
 - `pc/tacocam/`: engine (protocol, usbmux, link, decoder, pipeline, vcam, engine) + window (app, settings, ui_widgets).
 - `pc/tacocam/assets/taco-cam.ico`: window/taskbar icon, drawn by `pc/tools/make_icon.py`. `__main__.py` sets the

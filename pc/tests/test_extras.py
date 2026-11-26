@@ -253,3 +253,35 @@ def test_startup_shortcut_path_and_args(monkeypatch, tmp_path):
     assert shortcuts.set_autostart(True) is True
     assert made == [(tmp_path / "Taco Cam.lnk", "-m tacocam --minimized")]
     assert shortcuts.set_autostart(False) is False and not (tmp_path / "Taco Cam.lnk").exists()
+
+
+def test_bundled_python_starts_the_bundled_copy(monkeypatch, tmp_path):
+    """In the friend's zip / installed copy the Startup shortcut must use the Python that came with Taco Cam,
+    never a Python the friend installed (it has none of Taco Cam's packages)."""
+    from tacocam import shortcuts
+    py = tmp_path / "python"
+    py.mkdir()
+    (py / "python314._pth").write_text("python314.zip\n.\n")
+    monkeypatch.setattr(shortcuts.sys, "executable", str(py / "python.exe"))
+    assert shortcuts.embedded_python()
+    assert shortcuts.pythonw() == py / "pythonw.exe"
+    assert not shortcuts.embedded_python(tmp_path / "other" / "python.exe")
+
+
+def test_uninstall_removes_only_its_own_startup_shortcut(monkeypatch, tmp_path):
+    from tacocam import shortcuts
+    monkeypatch.setattr(shortcuts, "known_folder", lambda csidl: tmp_path)
+    mine, other = tmp_path / "Programs" / "Taco Cam", tmp_path / "ClaudeProjects" / "Webcam"
+    link = tmp_path / "Taco Cam.lnk"
+    link.write_bytes(b"L\0\0\0junk" + (str(other) + "\python\pythonw.exe").encode("utf-16-le") + b"\0\0")
+    assert shortcuts.remove_autostart_of(mine) is False and link.exists()        # another Taco Cam's: kept
+    link.write_bytes(b"L\0\0\0junk" + (str(mine) + "\python\pythonw.exe").encode("utf-16-le") + b"\0\0")
+    assert shortcuts.remove_autostart_of(mine) is True and not link.exists()
+
+
+def test_real_shortcut_records_its_target(tmp_path):
+    from tacocam import shortcuts
+    link = tmp_path / "t.lnk"
+    shortcuts.make(link)
+    assert shortcuts.points_into(link, shortcuts.pythonw().parent)
+    assert not shortcuts.points_into(link, tmp_path / "nowhere")
