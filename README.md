@@ -1,8 +1,36 @@
+<div align="center">
+
+<img src="ios/TacoCam/Assets.xcassets/AppIcon.appiconset/icon-1024.png" width="112" alt="Taco Cam icon">
+
 # Taco Cam
+
+**Your phone as a USB webcam for OBS, with the 0.5x ultra-wide lens.**
+
+[![iPhone app](https://github.com/mAgNiFiCeNtTaCo/TacoCam/actions/workflows/ios.yml/badge.svg)](https://github.com/mAgNiFiCeNtTaCo/TacoCam/actions/workflows/ios.yml)
+[![Android app](https://github.com/mAgNiFiCeNtTaCo/TacoCam/actions/workflows/android.yml/badge.svg)](https://github.com/mAgNiFiCeNtTaCo/TacoCam/actions/workflows/android.yml)
+
+<img src="docs/images/window.png" width="820" alt="The Taco Cam window: the camera picture on the left, zoom and preset buttons under it, camera settings on the right">
+
+<sub>The PC window, here with a test picture instead of a real camera.</sub>
+
+</div>
 
 Taco Cam turns your iPhone or Android phone into a webcam for OBS, like Iriun Webcam does, and adds a
 **0.5x zoom-out** (the ultra-wide lens). It works mainly over the USB cable. It is made for a **portrait 1080x1920** OBS
 canvas (your Whatnot box breaks), but landscape works too.
+
+## What it does
+
+- **0.5x to zoomed in**: big buttons for every lens the phone has, a zoom slider, and a smooth glide between them.
+- **Every camera setting from the PC**: click the picture to focus; exposure, white balance, torch, stabilization, HDR.
+- **Presets with hotkeys**: save "Wide table" and "Card close-up", switch with **Ctrl+Alt+1..9** from any program,
+  or let them follow your OBS scenes.
+- **Save the hit**: **Ctrl+Alt+0** saves the last 30 seconds as an MP4 at full phone quality.
+- **Pre-show check**: one list of everything that matters before you go live, and a beep if the picture stops
+  while you stream.
+- **USB only by default**: the phone only talks over the cable; Wi-Fi needs a pairing code.
+- **A copy for a friend**: one zip for a friend's PC with an Android phone. It installs the phone app and sets up OBS
+  in three steps ([how](#android-phones-and-giving-taco-cam-to-a-friend)).
 
 Two parts:
 
@@ -10,7 +38,7 @@ Two parts:
 - **The PC window** (this folder) shows the picture, lets you change every camera setting, and gives OBS a
   camera called **Taco Cam**.
 
-You need an iPhone 11 or newer (older phones have no 0.5x lens).
+You need an iPhone 11 or newer (older iPhones have no 0.5x lens), or an Android phone with Android 11 or newer.
 
 ## One-time setup
 
@@ -28,6 +56,8 @@ You need an iPhone 11 or newer (older phones have no 0.5x lens).
 `python pc/tools/build_portable.py` makes `dist\TacoCam.zip` for a friend's Windows PC with an Android phone
 (Android 11 or newer). The friend unzips it and double-clicks **Start Taco Cam**; a **Get started** window walks
 through three steps, each one button:
+
+<img src="docs/images/get-started.png" width="520" alt="The Get started window: three steps, each with a tick when done">
 
 1. **Install the camera** (the "Taco Cam" camera for OBS; Windows asks for permission once).
 2. **Connect the phone**: USB debugging switched on once on the phone, then plug in and tap Allow. Taco Cam
@@ -88,9 +118,12 @@ stopped, a red line says why (Taco Cam in the background, another app such as Fa
 screen, phone too hot).
 
 Greyed-out controls are things the current camera can't do; the little orange text says why. The window
-always shows the value the phone really uses (it may adjust what you ask for).
+always shows the value the phone really uses (it may adjust what you ask for). Click a tab name below to see
+what each setting does.
 
-### Camera tab
+<details>
+<summary><b>Camera tab</b></summary>
+
 | Control | What it does |
 |---|---|
 | Camera | Back (has the 0.5x lens) or front. |
@@ -100,7 +133,11 @@ always shows the value the phone really uses (it may adjust what you ask for).
 | Bitrate | How much data per second. Higher = sharper. 16 Mbps is good for 1080p. |
 | Zoom speed | How the zoom moves when you switch presets, click a zoom button or turn the wheel: **Smooth** (default) glides there in half a second instead of jumping; Slow / Very slow take 1 / 2 s; Instant jumps. Focus / brightness / color holds of a preset start once the glide has ended. |
 
-### Image tab
+</details>
+
+<details>
+<summary><b>Image tab</b></summary>
+
 | Control | What it does |
 |---|---|
 | Focus | Auto, or Manual with a distance slider. |
@@ -112,7 +149,11 @@ always shows the value the phone really uses (it may adjust what you ask for).
 | HDR video | Better bright areas, where supported. |
 | Reset image settings | Puts focus, exposure, anti-flicker, white balance, torch, stabilization and HDR back to normal. |
 
-### Presets tab
+</details>
+
+<details>
+<summary><b>Presets tab</b></summary>
+
 Save the picture settings you switch between during a show (zoom, focus, exposure, colors, light,
 anti-flicker), for example **Wide table** (0.5x) and **Card close-up** (zoomed in, focus locked).
 Resolution, fps and bitrate are not part of a preset (changing those restarts the video).
@@ -125,7 +166,11 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 | Hotkeys | **Ctrl+Alt+1..9** apply presets 1..9 from any program, also while OBS is in front. |
 | Follow OBS | Applies the preset linked to the live OBS scene whenever you switch scenes. Pick a scene, then **Link to selected preset**. It only reads the scene name through OBS's websocket server (Tools > WebSocket Server Settings) and never changes OBS. |
 
-### Output (OBS) tab
+</details>
+
+<details>
+<summary><b>Output (OBS) tab</b></summary>
+
 | Control | What it does |
 |---|---|
 | Output size | Portrait 1080x1920 (your Whatnot canvas), Landscape 1920x1080, 720p, 4K landscape or portrait. |
@@ -136,7 +181,11 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 | When no phone | What OBS shows if the phone is unplugged: a "waiting" card, the last picture, or black. |
 | Preview turn | Turns the picture in the Taco Cam window only. It doesn't change what OBS gets. Pick 90 if your OBS scene turns the camera 90 degrees. |
 
-### Extras tab
+</details>
+
+<details>
+<summary><b>Extras tab</b></summary>
+
 | Control | What it does |
 |---|---|
 | Clip length / Save clip now | **Ctrl+Alt+0** or the **Save last 30 s** button saves the last 15/30/60 s of the camera as an MP4 in `Videos\Taco Cam clips` (full phone quality, no re-encoding, upright). |
@@ -147,6 +196,8 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 
 The bottom bar's phone battery text turns orange (not charging, under 30%) or red (under 15%), and says when
 the charger is unplugged.
+
+</details>
 
 ### Bottom bar: the iPhone app's 7-day limit
 With a free Apple ID the iPhone app stops opening 7 days after you install it. The bottom bar shows
@@ -161,13 +212,17 @@ plugged in, phone not hot, days left on the iPhone app, the "Taco Cam" camera re
 itself while open, so you can watch lines turn green as you fix them. Tip: turn on **Do Not Disturb** on the
 iPhone during a show: a FaceTime call takes the camera away.
 
-### Phone tab
+<details>
+<summary><b>Phone tab</b></summary>
+
 | Control | What it does |
 |---|---|
 | Phone screen | **Dim** turns the phone screen black to save battery and heat. Touch the phone to wake it. |
 | Connect by | **iPhone (USB)** (default), **Android (USB)** or **Wi-Fi** (iPhone). The iPhone only listens to the USB cable unless you switch on **Allow Wi-Fi connections** in the phone app's Settings. It then shows its IP address and a **pairing code**: type both here once. Without the code nothing on the Wi-Fi can see or control the camera. Android: Taco Cam installs, opens and connects to the phone app over the cable by itself; the phone needs **USB debugging** on (the steps are under this setting). |
 | Get started (button under the picture) | The three setup steps: the camera for OBS, the phone, and OBS itself. Opens by itself the first time on a friend's copy. |
 | Start test phone | Starts a pretend phone on this PC (address 127.0.0.1) so you can try the app without the iPhone. |
+
+</details>
 
 ### Log tab
 The last messages from the program. Useful if you ask for help. The same lines go to `taco-cam.log`.
