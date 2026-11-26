@@ -4,7 +4,7 @@ Taco Cam: our own iPhone-as-USB-webcam app (what Iriun Webcam does, every featur
 zoom-out). An iPhone app sends H.264/HEVC over the USB cable; a PC window shows it and feeds OBS through a
 DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break stream.
 
-## Where it stands (2026-11-17)
+## Where it stands (2026-11-26)
 - **In use**: iPhone 11 (iOS 27.0.1) over USB into OBS (Whatnot scene) and into the Whatnot card scanner.
 - iPhone app: GitHub Actions build (last green run 40258964830), `dist/TacoCam.ipa` (gitignored) installed with
   **iloader**; reinstalled 2026-11-08, so 7 days runs to ~2026-11-15 (bottom bar shows the date, orange 2 days
@@ -27,11 +27,43 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
 - 2026-11-17: Android phone app (`android/`, Android 11+) and PC "Android (USB)" mode; a friend's copy
   `dist/TacoCam.zip` (`python pc/tools/build_portable.py`) with a Get started window and one-click OBS setup.
   Emulator test on GitHub passes; not yet tried on a real Android phone. PC tests 340.
+- 2026-11-26: GitHub release v1.0 (pre-release, https://github.com/mAgNiFiCeNtTaCo/TacoCam/releases/tag/v1.0) with
+  `TacoCam.zip` and the installer `TacoCam-Setup-1.0.exe` (Inno Setup, unsigned: SmartScreen warns once). README with
+  icon, build badges and screenshots. GitHub Support ticket sent for the old commits. PC tests 343.
 - Open: confirm the turned preview by eye; test glide / pause reasons on the real phone; front camera /
   upright check (`docs/QA.md`); scanner card finding on a busy background (54 failed frames in Whatnot
   `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-11-26: GitHub page, Windows installer, release v1.0, Support request
+- **GitHub page** (badd4ef): README with the app icon, the two live build badges (iPhone, Android), a window
+  screenshot and the Get started screenshot (`docs/images/`, made with a pretend engine and a test picture, never the
+  real camera), a "What it does" list, Android 11+ in the requirements, the six settings tables folded. Repo
+  description and topics set, empty Projects tab turned off. Social preview picture made
+  (`docs/images/social-preview.png`, 1280x640); GitHub only takes it by upload on the website: the user's to do.
+- **Windows installer** (b4b1808): `installer/TacoCam.iss` (Inno Setup 6, per-user, no admin, Start menu + optional
+  desktop icon, keeps the friend's settings.json on update, uninstaller removes everything it put there, removes the
+  Startup shortcut only if it points into its own folder, asks before removing the camera, default No).
+  `pc/tools/build_portable.py` now builds and tests both: zip PASS; installer PASS (silent install, start, connect to
+  a test phone, silent uninstall, nothing left; the user's own shortcuts untouched). `--no-installer` skips it.
+  Unsigned, so SmartScreen says "Windows protected your PC" once; the guide, README and release notes say so and how
+  to get past it. The zip has no such warning.
+- **Bug fixed**: on a friend's copy "Open Taco Cam when I log in" pointed at the wrong Python (the embedded copy is
+  now detected by its `python3*._pth` file, `shortcuts.pythonw()`). 3 new tests; 343 pass.
+- **Release v1.0** published 2026-11-26 as a pre-release (the user ran `gh release create` after the auto-mode check
+  blocked it): both files uploaded, GitHub's SHA-256 matches the local builds (zip fe445cc2..., installer
+  cc9ef505...). Pre-release until a real Android phone has worked.
+- **GitHub Support** ticket sent 2026-11-26 by the user (form: Repository features > Branches, then the ticket page)
+  asking to purge the old commits 99059ad, 2eec4af, 182a8ae, 7f2b8de (all still reachable on 2026-11-26). The
+  "Deletes" option is for deleting the whole repo: never pick it for this. When Support replies, check with
+  `gh api repos/mAgNiFiCeNtTaCo/TacoCam/commits/99059ad` (404 = gone).
+- Slop check (AI_SlopAgent `reports/2026-11-26-Webcam.md`, two passes): 4 static badges removed, two slogan labels
+  made plain; release notes and installer text clean.
+- Still open: real Android phone test (`build/friend-test/`), social preview upload, the demo zoom clip (needs the
+  user's footage), antivirus check, restarting the user's own window on the new code (ask first).
+- Resources 2026-11-26 13:24: Webcam 0 processes (window not running at that moment), disk 808 MB; whole PC CPU 6% of
+  32 threads, RAM 26.8 of 64 GB, GPU 30%.
+
 ### 2026-11-23: Real Android phone test set up (not run yet)
 - 2026-11-18: the user has an Android phone to test with. `dist/TacoCam.zip` unzipped to
   `build/friend-test/Taco Cam/` (gitignored) so the test uses exactly the friend's copy, with its own settings.json

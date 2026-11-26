@@ -302,6 +302,32 @@
           ]
         }
       ]
+    },
+    {
+      "title": "GitHub page, Windows installer, release v1.0, Support request",
+      "date": "2026-11-26",
+      "summary": "Dressed up the GitHub page, added a Windows installer next to the zip, published release v1.0 and walked the user through the GitHub Support ticket.",
+      "stages": [
+        {
+          "name": "Build and ship",
+          "kind": "solo",
+          "sessions": [
+            {
+              "id": "d8f52793",
+              "role": "Webcam session",
+              "start": "2026-11-23T01:00",
+              "end": "2026-11-26T13:30",
+              "did": "README + screenshots, Inno Setup installer + tests, startup-shortcut fix, release v1.0 (user ran gh release), Support ticket",
+              "outcome": "done",
+              "files": 14
+            }
+          ]
+        }
+      ],
+      "lessons": [
+        "The auto-mode check blocks publishing a public GitHub release: give the user the exact `! gh release create` line.",
+        "GitHub Support form: 'Deletes' is for deleting the whole repo; old-commit purges go under Repository features."
+      ]
     }
   ]
 }
