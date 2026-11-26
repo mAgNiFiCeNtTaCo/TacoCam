@@ -19,6 +19,12 @@ Taco Cam turns your iPhone or Android phone into a webcam for OBS, like Iriun We
 **0.5x zoom-out** (the ultra-wide lens). It works mainly over the USB cable. It is made for a **portrait 1080x1920** OBS
 canvas (your Whatnot box breaks), but landscape works too.
 
+<p align="center">
+<img src="docs/images/zoom.webp" width="300" alt="A table of trading cards filmed by a phone: the wide 0.5x view zooms in on a box of packs, holds, and zooms back out">
+<br>
+<sub>Ctrl+Alt+1 and Ctrl+Alt+2 on the PC: the 0.5x wide table, a close-up, and back. Saved with Ctrl+Alt+0 from an iPhone 11.</sub>
+</p>
+
 ## What it does
 
 - **0.5x to zoomed in**: big buttons for every lens the phone has, a zoom slider, and a smooth glide between them.
