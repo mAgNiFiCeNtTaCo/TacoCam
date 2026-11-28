@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="220" viewBox="0 0 1000 220" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif">
+<rect width="1000" height="220" rx="14" fill="#0d1117"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#f0913a"/></marker></defs>
+<rect x="20" y="36" width="172" height="112" rx="12" fill="#1b1f26" stroke="#30363d" stroke-width="1.5"/>
+<text x="106" y="74" text-anchor="middle" font-size="19" font-weight="700" fill="#e6edf3">Phone</text>
+<text x="106" y="102" text-anchor="middle" font-size="14" fill="#9aa4b0">Taco Cam app</text>
+<text x="106" y="122" text-anchor="middle" font-size="14" fill="#9aa4b0">iPhone or Android</text>
+<line x1="198" y1="92" x2="277" y2="92" stroke="#f0913a" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="237" y="82" text-anchor="middle" font-size="13" fill="#f0913a">USB cable</text>
+<rect x="283" y="36" width="172" height="112" rx="12" fill="#1b1f26" stroke="#30363d" stroke-width="1.5"/>
+<text x="369" y="74" text-anchor="middle" font-size="19" font-weight="700" fill="#e6edf3">PC window</text>
+<text x="369" y="102" text-anchor="middle" font-size="14" fill="#9aa4b0">zoom, focus, presets,</text>
+<text x="369" y="122" text-anchor="middle" font-size="14" fill="#9aa4b0">pre-show check</text>
+<line x1="461" y1="92" x2="539" y2="92" stroke="#f0913a" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="500" y="82" text-anchor="middle" font-size="13" fill="#f0913a">camera</text>
+<rect x="545" y="36" width="172" height="112" rx="12" fill="#1b1f26" stroke="#30363d" stroke-width="1.5"/>
+<text x="631" y="74" text-anchor="middle" font-size="19" font-weight="700" fill="#e6edf3">OBS</text>
+<text x="631" y="102" text-anchor="middle" font-size="14" fill="#9aa4b0">“Taco Cam” camera in</text>
+<text x="631" y="122" text-anchor="middle" font-size="14" fill="#9aa4b0">a 1080x1920 scene</text>
+<line x1="723" y1="92" x2="802" y2="92" stroke="#f0913a" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="763" y="82" text-anchor="middle" font-size="13" fill="#f0913a">stream</text>
+<rect x="808" y="36" width="172" height="112" rx="12" fill="#1b1f26" stroke="#30363d" stroke-width="1.5"/>
+<text x="894" y="74" text-anchor="middle" font-size="19" font-weight="700" fill="#e6edf3">Whatnot</text>
+<text x="894" y="102" text-anchor="middle" font-size="14" fill="#9aa4b0">your live show</text>
+<text x="894" y="122" text-anchor="middle" font-size="14" fill="#9aa4b0">(OBS streams it)</text>
+<text x="500" y="194" text-anchor="middle" font-size="14" fill="#9aa4b0">The picture travels over the USB cable; OBS turns it upright for the tall Whatnot screen.</text>
+</svg>

@@ -38,6 +38,11 @@ canvas (your Whatnot box breaks), but landscape works too.
 - **A copy for a friend**: one zip for a friend's PC with an Android phone. It installs the phone app and sets up OBS
   in three steps ([how](#android-phones-and-giving-taco-cam-to-a-friend)).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/how-it-works-dark.svg">
+  <img src="docs/images/how-it-works-light.svg" width="100%" alt="How it works: the phone's Taco Cam app sends the picture over the USB cable to the PC window, which gives OBS a camera called Taco Cam in a 1080x1920 scene, and OBS streams it to Whatnot">
+</picture>
+
 Two parts:
 
 - **The phone app** (Taco Cam for iPhone in `ios/`, for Android in `android/`) sends the camera picture.
@@ -69,14 +74,16 @@ same Taco Cam onto a Windows PC with an Android phone (Android 11 or newer).
 
 Either way a **Get started** window walks through three steps, each one button:
 
-<img src="docs/images/get-started.png" width="520" alt="The Get started window: three steps, each with a tick when done">
+<img src="docs/images/get-started.png" width="520" alt="The Get started window: three steps, each with a tick when done, and under Set up OBS the choice between NVIDIA (NVENC) and Standard (x264)">
 
 1. **Install the camera** (the "Taco Cam" camera for OBS; Windows asks for permission once).
 2. **Connect the phone**: USB debugging switched on once on the phone, then plug in and tap Allow. Taco Cam
    installs its app on the phone, opens it and connects by itself, every time.
 3. **Set up OBS**: a "Taco Cam Whatnot" profile and scene collection like yours (1080x1920, Whatnot's stream
    settings, the camera turned to fill the picture, the microphone), and OBS's connection for Whatnot's Show
-   Tools.
+   Tools. On a PC with an NVIDIA graphics card it streams with the card's encoder (NVENC), so the processor stays
+   free; Standard (x264) works on any PC. Whatnot's Update Profile switches OBS back to x264: close OBS and click
+   **Re-apply NVIDIA settings**.
 
 The zip holds python.org's signed Python, Google's signed adb, the phone app and our own code as plain text,
 so antivirus programs don't flag it the way they flag a new unsigned .exe. The friend's step-by-step guide is
@@ -123,6 +130,13 @@ you not to press OBS's button.
 - **Click** the picture to focus on that spot (a small orange square shows where).
 - **Mouse wheel** on the picture zooms.
 - Under it: big **zoom buttons** (0.5x, 1x, 3x... whatever lenses your phone has) and a **zoom slider**.
+
+<p align="center">
+<img src="docs/images/compare.jpg" width="560" alt="The same table filmed twice: at 0.5x the whole table with stacks of cards and boxes, at 1.6x one box of packs fills the picture">
+<br>
+<sub>The two presets from the clip above, on an iPhone 11: 0.5x shows the whole table, 1.6x one box.</sub>
+</p>
+
 - Under those: your preset buttons, **Pre-show check** and **Save last 30 s**.
 
 **Bottom bar:** connection ("Searching for iPhone on USB", "iPhone found: open Taco Cam on the phone",
@@ -138,6 +152,8 @@ what each setting does.
 <details>
 <summary><b>Camera tab</b></summary>
 
+<img src="docs/images/tab-camera.png" width="440" alt="The Camera tab: back or front camera, resolution, frame rate, codec, bitrate and zoom speed">
+
 | Control | What it does |
 |---|---|
 | Camera | Back (has the 0.5x lens) or front. |
@@ -151,6 +167,8 @@ what each setting does.
 
 <details>
 <summary><b>Image tab</b></summary>
+
+<img src="docs/images/tab-image.png" width="440" alt="The Image tab: focus, exposure, anti-flicker, ISO, shutter, white balance, torch and stabilization">
 
 | Control | What it does |
 |---|---|
@@ -167,6 +185,8 @@ what each setting does.
 
 <details>
 <summary><b>Presets tab</b></summary>
+
+<img src="docs/images/tab-presets.png" width="440" alt="The Presets tab: the Wide Table and Close UP presets with Apply, Save new, Update, Rename and Delete, what to lock when saving, OBS scene links and hotkeys">
 
 Save the picture settings you switch between during a show (zoom, focus, exposure, colors, light,
 anti-flicker), for example **Wide table** (0.5x) and **Card close-up** (zoomed in, focus locked).
@@ -185,6 +205,8 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 <details>
 <summary><b>Output (OBS) tab</b></summary>
 
+<img src="docs/images/tab-output.png" width="440" alt="The Output (OBS) tab: output size, fit, rotate, mirror, flip, output fps, what to show with no phone, and the preview turn">
+
 | Control | What it does |
 |---|---|
 | Output size | Portrait 1080x1920 (your Whatnot canvas), Landscape 1920x1080, 720p, 4K landscape or portrait. |
@@ -199,6 +221,8 @@ Resolution, fps and bitrate are not part of a preset (changing those restarts th
 
 <details>
 <summary><b>Extras tab</b></summary>
+
+<img src="docs/images/tab-extras.png" width="440" alt="The Extras tab: save-the-hit clips, the card scanner feed, the pre-show check, start with Windows and phone battery warnings">
 
 | Control | What it does |
 |---|---|
@@ -219,6 +243,8 @@ With a free Apple ID the iPhone app stops opening 7 days after you install it. T
 iloader (`docs/INSTALL_IPHONE.md`) to get another 7 days.
 
 ### Pre-show check
+<img src="docs/images/precheck.png" width="440" alt="The pre-show check window: Ready to go live, with a green tick for each line, from iPhone connected by USB to OBS gets 1920x1080">
+
 The **Pre-show check** button under the picture opens a list of everything that matters before a show, green
 when fine, orange or red when not: phone connected by USB, picture coming in, phone camera at 1080p, charger
 plugged in, phone not hot, days left on the iPhone app, the "Taco Cam" camera ready for OBS, OBS getting
@@ -228,6 +254,8 @@ iPhone during a show: a FaceTime call takes the camera away.
 
 <details>
 <summary><b>Phone tab</b></summary>
+
+<img src="docs/images/tab-phone.png" width="440" alt="The Phone tab: dim the phone screen, connect by iPhone USB, Android USB or Wi-Fi, and the Android first-time steps">
 
 | Control | What it does |
 |---|---|
