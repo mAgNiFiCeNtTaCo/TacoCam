@@ -65,10 +65,11 @@ Owner: "fix webcam". Report: `Security_Agent_Audit/reports/2026-11-28-Webcam-2.m
   `.gitignore` covers `*keystore*.properties` and `*.p12`.
 - Tests: 369 pass (`pc/tests/test_build_checks.py` is new, two more in `test_obssetup.py`); the Android unit tests
   pass in the Gradle build; zip test and installer test PASSED. All six proofs of the audit print safe.
-- **Still to do, the owner's yes needed**: replace the two files of GitHub release v1.0 with the new
-  `dist/TacoCam.zip` and `dist/TacoCam-Setup-1.0.exe` and update the two SHA-256 lines in the release notes. The
-  files online until then still hold the user name. The running Taco Cam window keeps its old code until it is
-  next restarted (only the Get started OBS step and the adb fallback changed there).
+- **Release v1.0 replaced** (the owner ran `gh release upload --clobber` and `gh release edit`, 2026-11-28): both
+  files online are the clean rebuild (zip SHA-256 b76c1e4d..., Setup 195cb105..., equal to GitHub's digests) and
+  the notes carry those two lines. GitHub's Android emulator run 46180296367 is green with the new phone app.
+  The running Taco Cam window keeps its old code until it is next restarted (only the Get started OBS step and
+  the adb fallback changed there).
 
 ### 2026-11-28: Encoder choice (x264 / NVENC), friend's copy rebuilt, README visuals
 - **iPhone not answering** (11:50-11:55): the window saw the iPhone on USB but the app refused the connection; the
