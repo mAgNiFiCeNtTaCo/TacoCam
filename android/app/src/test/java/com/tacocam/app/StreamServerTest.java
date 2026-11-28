@@ -3,7 +3,6 @@ package com.tacocam.app;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import org.json.JSONObject;
 import org.junit.After;
@@ -188,19 +187,59 @@ public class StreamServerTest {
         assertArrayEquals(new byte[] {4}, (byte[]) a.next(Proto.PONG)[1]);
     }
 
-    @Test public void fiveWrongCodesLockForAMinute() throws Exception {
+    /** Another app on the phone that sends wrong codes must not keep the PC out (WEBCAM-20261128-02). */
+    @Test public void fiveWrongCodesThenTheRightCodeConnectsAtOnce() throws Exception {
+        List<Client> wrong = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             Client c = new Client(server.port());
-            c.pair("ZZZZZZZZZZZZZZZZ");
-            c.closedSoon();
-        }
-        Client c = new Client(server.port());
-        try {
             c.sendJson(Proto.HELLO, "{\"proto\":1}");
             Object[] m = c.next();
-            fail("a locked phone answered: " + m[0]);
-        } catch (IOException expected) {
-            // closed at once
+            byte[] phoneNonce = Proto.unhex(Proto.json((byte[]) m[1]).getString("nonce"), 16);
+            byte[] pcNonce = Proto.nonce();
+            c.sendJson(Proto.AUTH, new JSONObject().put("nonce", Proto.hex(pcNonce))
+                    .put("mac", Proto.hex(Proto.mac("ZZZZZZZZZZZZZZZZ", "pc", phoneNonce, pcNonce))).toString());
+            wrong.add(c);
         }
+        long t0 = System.currentTimeMillis();
+        Client pc = new Client(server.port());
+        JSONObject hello = pc.pair(CODE);
+        assertEquals("android", hello.getString("platform"));
+        assertTrue("the PC is let in without waiting for the wrong ones", System.currentTimeMillis() - t0 < 900);
+        for (Client c : wrong) assertTrue(c.closedSoon());
+        assertTrue(sets.isEmpty());
+        pc.send(Proto.PING, new byte[] {9});
+        assertArrayEquals(new byte[] {9}, (byte[]) pc.next(Proto.PONG)[1]);
+    }
+
+    /** A newer connection that proved nothing must not close one that is still pairing. */
+    @Test public void aNewcomerDoesNotCloseAWaitingConnection() throws Exception {
+        Client pc = new Client(server.port());
+        pc.sendJson(Proto.HELLO, "{\"proto\":1,\"client\":\"TacoCam PC\",\"version\":\"1.0\"}");
+        Object[] m = pc.next();
+        assertEquals(Proto.AUTH, (int) (Integer) m[0]);
+        byte[] phoneNonce = Proto.unhex(Proto.json((byte[]) m[1]).getString("nonce"), 16);
+        Client silent = new Client(server.port());              // connects and says nothing
+        Client chatty = new Client(server.port());
+        chatty.sendJson(Proto.HELLO, "{\"proto\":1}");
+        chatty.next();
+        byte[] pcNonce = Proto.nonce();
+        pc.sendJson(Proto.AUTH, new JSONObject().put("nonce", Proto.hex(pcNonce))
+                .put("mac", Proto.hex(Proto.mac(CODE, "pc", phoneNonce, pcNonce))).toString());
+        m = pc.next();
+        assertEquals("the waiting PC still gets its answer", Proto.AUTH, (int) (Integer) m[0]);
+        assertEquals(Proto.HELLO, (int) (Integer) pc.next()[0]);
+        assertTrue(server.connected());
+        assertTrue("the ones that proved nothing are closed after 3 s", silent.closedSoon() || silent.closedSoon());
+        pc.send(Proto.PING, new byte[] {5});
+        assertArrayEquals(new byte[] {5}, (byte[]) pc.next(Proto.PONG)[1]);
+    }
+
+    /** More waiting connections than there is room for: the PC that comes last still gets in. */
+    @Test public void aFullWaitingRoomDoesNotKeepThePcOut() throws Exception {
+        List<Client> crowd = new ArrayList<>();
+        for (int i = 0; i < StreamServer.MAX_WAITING + 2; i++) crowd.add(new Client(server.port()));
+        Client pc = new Client(server.port());
+        assertEquals("android", pc.pair(CODE).getString("platform"));
+        assertTrue(server.connected());
     }
 }

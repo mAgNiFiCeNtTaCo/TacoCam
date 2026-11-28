@@ -68,6 +68,10 @@ explain in plain words and finish jobs end to end.
   or names. Swift is only compiled on GitHub: read it carefully before each push.
 
 ## Gotchas
+- The friend's copy must hold nothing of this PC: `build_portable.py` stops when a file holds the Windows user
+  folder (`must_be_clean`); pip runs with `--no-compile` there. In that copy Python's compiled files go to
+  `<Taco Cam>\tacocam-cache` (`pc/tacocam/__init__.py`), so the uninstaller never deletes `pc` or `python` whole.
+  A new Python version on this PC needs its checksum in `EMBED_SHA256` before the build runs.
 - No Android emulator on this PC (no hardware acceleration): the end-to-end test runs only on GitHub. Gradle: call
   `android\gradlew.bat` by full path (NoDefaultCurrentDirectoryInExePath). Embeddable Python's `_tkinter` also needs
   `libtommath.dll` + `zlib1.dll`. Defender is off here, so the zip can't be virus-scanned locally.

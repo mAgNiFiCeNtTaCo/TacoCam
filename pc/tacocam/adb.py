@@ -45,7 +45,12 @@ def find_adb():
     for c in candidates:
         if c and Path(c).is_file():
             return str(c)
-    return shutil.which("adb")
+    # PATH last, and never a file that merely lies in the current folder (Windows looks there first)
+    os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"
+    found = shutil.which(exe)
+    if found and Path(found).resolve().parent == Path.cwd().resolve():
+        return None
+    return found
 
 
 def find_apk():

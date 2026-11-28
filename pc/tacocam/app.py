@@ -1139,6 +1139,10 @@ class App:
             text += (f'\n\nWhatnot\'s Show Tools connects to OBS and asks for OBS\'s password. It is:\n\n'
                      f'    {res["websocket_password"]}\n\n(copied, so you can paste it there; port '
                      f'{res["websocket_port"]}). OBS also shows it under Tools > WebSocket Server Settings.')
+            if res.get("websocket_was_open"):
+                text += ("\n\nOBS's connection for other programs was switched on without a password, so anyone "
+                         "on your network could have controlled OBS. Taco Cam switched the password on. A program "
+                         "that connected to OBS before needs this password once.")
         messagebox.showinfo("Taco Cam", text, parent=self.setup_win or self.root)
         self._fill_setup()
         return res

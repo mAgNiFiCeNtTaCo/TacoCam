@@ -14,6 +14,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -23,6 +24,10 @@ import java.util.List;
  * cable (the app's files folder, which other apps can't read since Android 11).
  *
  * One PC at a time; a connected PC is never pushed out by a newcomer unless it went quiet for 3 s.
+ *
+ * Another app on the phone must not be able to keep the PC out (WEBCAM-20261128-02): connections that have not
+ * proved the code yet wait side by side (each has 3 s), the first one that proves it becomes the PC, and a wrong
+ * code only costs that one connection a second. Nothing a stranger sends closes the door for the PC.
  */
 final class StreamServer {
     interface Handler {
@@ -41,13 +46,15 @@ final class StreamServer {
     static final long PAIR_TIMEOUT_MS = 3000;
     static final long QUIET_AFTER_MS = 3000;
     static final long SILENT_CLOSE_MS = 10_000;
+    static final int MAX_WAITING = 8;
+    static final long WRONG_CODE_WAIT_MS = 1000;
 
     private final Handler handler;
     private ServerSocket server;
     private volatile boolean running;
-    private Session session;
-    private int wrongCodes;
-    private long lockedUntil;
+    private Session session;                                      // the PC: it proved the code
+    private final ArrayList<Session> waiting = new ArrayList<>();  // connected, code not proved yet
+    private int wrongCodes;                                       // in a row; only for the line on the screen
 
     private final int wantPort;
     private volatile int boundPort = -1;
@@ -83,11 +90,15 @@ final class StreamServer {
         } catch (IOException ignored) {
         }
         Session s;
+        ArrayList<Session> rest;
         synchronized (this) {
             s = session;
             session = null;
+            rest = new ArrayList<>(waiting);
+            waiting.clear();
         }
         if (s != null) s.close();
+        for (Session w : rest) w.close();
     }
 
     synchronized boolean connected() {
@@ -149,45 +160,50 @@ final class StreamServer {
                 continue;
             }
             boolean keep;
+            Session oldest = null;
             synchronized (this) {
-                Session old = session;
-                long now = System.currentTimeMillis();
-                if (now < lockedUntil) {
-                    keep = true;
-                } else {
-                    keep = old != null && !old.closed && old.authed && now - old.lastRx < QUIET_AFTER_MS;
-                }
+                keep = pcIsThere(null);
                 if (!keep) {
+                    // A newcomer never closes a waiting connection; only when the room is full does the one that
+                    // waited longest go (it had its turn).
+                    if (waiting.size() >= MAX_WAITING) oldest = waiting.remove(0);
                     Session s = new Session(sock);
-                    session = s;
-                    if (old != null) old.close();
+                    waiting.add(s);
                     s.start();
                 }
             }
+            if (oldest != null) oldest.close();
             if (keep) {
                 try {
                     sock.close();
                 } catch (IOException ignored) {
                 }
-                handler.status(System.currentTimeMillis() < lockedUntil
-                        ? "Turned a connection away: too many wrong codes, wait a minute"
-                        : "Turned a second PC away: one is already connected");
+                handler.status("Turned a second PC away: one is already connected");
             }
         }
+    }
+
+    /** A PC that proved the code is connected and was heard from in the last 3 s (call with the lock held). */
+    private boolean pcIsThere(Session except) {
+        Session s = session;
+        return s != null && s != except && !s.closed && System.currentTimeMillis() - s.lastRx < QUIET_AFTER_MS;
     }
 
     private void watchdog() {
         while (running) {
             sleep(500);
             Session s;
+            ArrayList<Session> late = new ArrayList<>();
+            long now = System.currentTimeMillis();
             synchronized (this) {
                 s = session;
+                for (Session w : waiting) {
+                    if (now - w.started > PAIR_TIMEOUT_MS) late.add(w);
+                }
             }
+            for (Session w : late) w.close();
             if (s == null || s.closed) continue;
-            long now = System.currentTimeMillis();
-            if (!s.authed && now - s.started > PAIR_TIMEOUT_MS) {
-                s.close();
-            } else if (now - s.lastRx > SILENT_CLOSE_MS) {
+            if (now - s.lastRx > SILENT_CLOSE_MS) {
                 s.close();
             } else if (s.gotHello && !s.streaming && now - s.helloAt > 2000) {
                 s.streaming = true;
@@ -315,6 +331,7 @@ final class StreamServer {
             } finally {
                 close();
                 synchronized (StreamServer.this) {
+                    waiting.remove(this);
                     if (session == this) session = null;
                 }
                 handler.status(null);
@@ -337,21 +354,39 @@ final class StreamServer {
                 byte[] mac = Proto.unhex(auth.optString("mac", null), -1);
                 String code = handler.code();
                 if (pcNonce == null || !Proto.check(mac, code, "pc", challenge, pcNonce)) {
+                    int tries;
                     synchronized (StreamServer.this) {
-                        if (++wrongCodes >= 5) {
-                            lockedUntil = System.currentTimeMillis() + 60_000;
-                            wrongCodes = 0;
-                        }
+                        tries = ++wrongCodes;
                     }
+                    handler.status(tries < 5 ? "Turned a connection away: wrong pairing code"
+                            : "Turned a connection away: wrong pairing code (" + tries + " in a row)");
+                    // Answer slowly, and only this connection waits: the door stays open for the PC, which has
+                    // the code. Guessing 80 random bits is hopeless either way.
+                    sleep(WRONG_CODE_WAIT_MS);
                     send(Proto.encodeText(Proto.LOG, "Closing: wrong pairing code"));
-                    handler.status("Turned a connection away: wrong pairing code");
                     sleep(100);
                     close();
                     return;
                 }
+                boolean taken;
+                Session old = null;
                 synchronized (StreamServer.this) {
-                    wrongCodes = 0;
+                    taken = pcIsThere(this);
+                    if (!taken) {
+                        old = session;
+                        session = this;
+                        waiting.remove(this);
+                        wrongCodes = 0;
+                    }
                 }
+                if (taken) {
+                    send(Proto.encodeText(Proto.LOG, "Closing: another PC is already connected"));
+                    handler.status("Turned a second PC away: one is already connected");
+                    sleep(100);
+                    close();
+                    return;
+                }
+                if (old != null && old != this) old.close();
                 authed = true;
                 try {
                     send(Proto.encodeJson(Proto.AUTH, new JSONObject().put("mac",

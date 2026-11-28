@@ -78,7 +78,8 @@ Either way a **Get started** window walks through three steps, each one button:
 
 1. **Install the camera** (the "Taco Cam" camera for OBS; Windows asks for permission once).
 2. **Connect the phone**: USB debugging switched on once on the phone, then plug in and tap Allow. Taco Cam
-   installs its app on the phone, opens it and connects by itself, every time.
+   installs its app on the phone, opens it and connects by itself, every time. USB debugging lets an allowed PC
+   install apps on the phone and read its files, so allow it only on your own PC.
 3. **Set up OBS**: a "Taco Cam Whatnot" profile and scene collection like yours (1080x1920, Whatnot's stream
    settings, the camera turned to fill the picture, the microphone), and OBS's connection for Whatnot's Show
    Tools. On a PC with an NVIDIA graphics card it streams with the card's encoder (NVENC), so the processor stays

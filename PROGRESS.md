@@ -38,6 +38,38 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-11-28: Security fixes from the audit of 2026-11-28 (seven findings, by the Security_Agent_Audit session)
+Owner: "fix webcam". Report: `Security_Agent_Audit/reports/2026-11-28-Webcam-2.md` (5 low, 2 info).
+- **-01, the builder's Windows user name inside the zip and the installer** (584 files of release v1.0: pip's
+  compiled `.pyc` files and three launcher programs). `pc/tools/build_portable.py`: pip runs with `--no-compile`,
+  `site-packages/bin` is deleted, and `must_be_clean()` stops the build when any file holds this PC's user folder
+  (as text or UTF-16); the zip test checks the unzipped copy again. The new zip has 1478 files (was 2062).
+- **-05, the uninstaller deleted whole `pc` and `python` folders.** `pc/tacocam/__init__.py` sends Python's compiled
+  files to ONE folder, `<Taco Cam>\tacocam-cache` (only in a copy that brings its own Python). `installer/TacoCam.iss`
+  removes that folder and `pc\tacocam\__pycache__`, then folders only when empty, and the setup refuses a folder
+  that already holds other files (the folder page and a silent install). The build tests both: uninstalling leaves
+  nothing, and a folder with somebody's `python\keep.txt` is refused with the file still there.
+- **-02, another app on an Android phone could keep the PC out.** `StreamServer.java`: no lock-out any more; a
+  wrong code is answered after 1 s and closes only that connection; up to 8 unproven connections wait side by
+  side (3 s each) and the first that proves the code becomes the PC. Three new tests in `StreamServerTest.java`.
+  `CONTRACT.md` section 1 says so. The iPhone app is unchanged (its Wi-Fi lock-out is per address and Wi-Fi is off
+  by default). versionCode 2, so the PC updates a phone that has the old app.
+- **-03, the build's signer checks.** `must_be_signed` compares the signature's `O=` field exactly (`SIGNERS`),
+  python.org's zip is compared with a known SHA-256 (`EMBED_SHA256`: a new Python version on this PC needs its
+  line), the phone app is judged by the release key's fingerprint (`APK_CERT_SHA256`, public). `make_keystore.py`
+  and `adb.py` never take a tool from the current folder, and a new key's password goes to keytool through its
+  environment.
+- **-04, OBS's remote control left without a password.** `obssetup._websocket` now also sets a password when the
+  server was on with authentication off; the result carries `websocket_was_open` and the window says so.
+- **-06 and -07**: the guide says what USB debugging allows and no longer says every program is signed;
+  `.gitignore` covers `*keystore*.properties` and `*.p12`.
+- Tests: 369 pass (`pc/tests/test_build_checks.py` is new, two more in `test_obssetup.py`); the Android unit tests
+  pass in the Gradle build; zip test and installer test PASSED. All six proofs of the audit print safe.
+- **Still to do, the owner's yes needed**: replace the two files of GitHub release v1.0 with the new
+  `dist/TacoCam.zip` and `dist/TacoCam-Setup-1.0.exe` and update the two SHA-256 lines in the release notes. The
+  files online until then still hold the user name. The running Taco Cam window keeps its old code until it is
+  next restarted (only the Get started OBS step and the adb fallback changed there).
+
 ### 2026-11-28: Encoder choice (x264 / NVENC), friend's copy rebuilt, README visuals
 - **iPhone not answering** (11:50-11:55): the window saw the iPhone on USB but the app refused the connection; the
   user swiped Taco Cam closed and reopened it, connected 11:55:21. Not the 7-day expiry.

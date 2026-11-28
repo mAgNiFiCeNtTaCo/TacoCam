@@ -35,7 +35,12 @@ Other stations do not commit; the orchestrator snapshots at the end.
   - **A connected PC is never pushed out by a newcomer.** While a PC that was let in is connected, a new
     connection is closed at once. One exception: a new USB connection replaces the old one when nothing was
     heard from the old one for 3 s (the PC pings every 1 s, so that means it crashed or lost its cable).
-    A connection that has not passed pairing yet is replaced by any newer one.
+    A connection that has not passed pairing yet is replaced by any newer one (iPhone, Wi-Fi).
+  - **Android (changed 2026-11-28, security finding WEBCAM-20261128-02).** Every connection arrives on the
+    phone's loopback address there, so another app on the phone looks like the PC. It must not be able to keep
+    the PC out: connections that have not passed pairing wait side by side (up to 8, each has 3 s; with 8
+    waiting the oldest goes), the first one that proves the code becomes the PC, and a wrong code is answered
+    after 1 s and closes only that connection. There is no lock-out on Android.
   - No Bonjour advertisement (the PC never browsed for it).
   - The phone shows how the PC is connected ("Connected (USB)" / "Connected (Wi-Fi 192.168.1.5)") and, for a
     short while, every connection it turned away.

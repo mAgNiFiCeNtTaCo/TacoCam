@@ -12,9 +12,13 @@ by anyone (that needs a paid code-signing certificate), so Windows SmartScreen s
 once (More info > Run anyway); the zip has no such step. Both go on the GitHub release.
 
 Why a zip with python.org's Python instead of one .exe: antivirus programs and browsers call new unsigned
-one-file .exe programs a virus ("Couldn't download - Virus detected"; OBS Doctor, 2026-11-14). Every program
-file in this zip is signed by who made it: python.exe / pythonw.exe and the Tk files by the Python Software
-Foundation, adb.exe by Google. Our own code is plain .py text.
+one-file .exe programs a virus ("Couldn't download - Virus detected"; OBS Doctor, 2026-11-14). Python
+(python.exe / pythonw.exe and the Tk files) is signed by the Python Software Foundation and adb.exe by Google;
+the picture and video packages are the standard ones from PyPI (not signed). Our own code is plain .py text.
+
+Nothing of the PC that builds it may end up inside (security finding WEBCAM-20261128-01): pip makes no compiled
+files and no launcher programs here (both hold the builder's own folder paths), and the build stops when any file
+still holds the Windows user folder of this PC.
 
 Inside the zip:
     Taco Cam/
@@ -28,9 +32,11 @@ Inside the zip:
         android/TacoCam.apk           the phone app (+ TacoCam.version), installed by Taco Cam itself
 """
 import argparse
+import hashlib
 import importlib.metadata
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -57,6 +63,15 @@ PACKAGES = [("av", "av"), ("numpy", "numpy"), ("opencv-python", "opencv-python-h
             ("pyvirtualcam", "pyvirtualcam")]
 ADB_FILES = ("adb.exe", "AdbWinApi.dll", "AdbWinUsbApi.dll", "NOTICE.txt")
 TK_FILES = ("_tkinter.pyd", "tcl90.dll", "tcl9tk90.dll", "libtommath.dll", "zlib1.dll")
+
+# Who must have signed what, compared exactly with the O= field of the signature (a look-alike name that merely
+# contains the word does not pass; WEBCAM-20261128-03).
+SIGNERS = {"Python Software Foundation": "Python Software Foundation", "Google": "Google LLC"}
+# SHA-256 of python.org's embeddable zip, per version. A new Python on this PC: check the new zip (its python.exe
+# must be signed by the Python Software Foundation), then add its line here.
+EMBED_SHA256 = {"3.14.10": "90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159"}
+# The release key's certificate fingerprint (public, not a secret): apksigner's "certificate SHA-256 digest".
+APK_CERT_SHA256 = "eafa936354bebe61cc57d2ce6eeb0fef379edac69bbb3373eb2c1b81a4009092"
 
 START_CMD = r"""@echo off
 title Taco Cam
@@ -96,7 +111,17 @@ def apk_signer_ok(apk):
     tool = SDK / "build-tools" / "36.0.0" / "apksigner.bat"
     out = subprocess.run(["cmd", "/c", str(tool), "verify", "--print-certs", str(apk)], capture_output=True,
                          text=True).stdout
-    return "CN=Taco Cam" in out
+    # the fingerprint of the key, not the name on it: anyone can make a key called "Taco Cam"
+    digests = re.findall(r"(?im)^Signer #\d+ certificate SHA-256 digest:\s*([0-9a-f]{64})\s*$", out)
+    return digests == [APK_CERT_SHA256]
+
+
+def sha256_of(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
 
 
 def embed_zip():
@@ -104,14 +129,24 @@ def embed_zip():
     ver = f"{v.major}.{v.minor}.{v.micro}"
     name = f"python-{ver}-embed-amd64.zip"
     dest = BUILD.parent / name
-    if dest.is_file() and dest.stat().st_size > 1_000_000:
-        return dest
+    want = EMBED_SHA256.get(ver)
+    if want is None:
+        raise SystemExit(f"No known checksum for {name}: add it to EMBED_SHA256 in build_portable.py after "
+                         "checking the download")
+    if dest.is_file():
+        if sha256_of(dest) == want:
+            return dest
+        dest.unlink()                    # a cached copy that is not the known file: fetch it again
     url = f"https://www.python.org/ftp/python/{ver}/{name}"
     log(f"downloading {url}")
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(".part")
     with urllib.request.urlopen(url, timeout=120) as r, open(tmp, "wb") as f:
         shutil.copyfileobj(r, f)
+    got = sha256_of(tmp)
+    if got != want:
+        tmp.unlink()
+        raise SystemExit(f"{name} from python.org is not the known file (SHA-256 {got[:16]}...): stopping")
     tmp.replace(dest)
     return dest
 
@@ -123,11 +158,47 @@ def signer(path):
     return status, subject
 
 
+def signer_org(subject):
+    """The O= field of a certificate subject ("CN=Google LLC, O=Google LLC, L=...") or ""."""
+    m = re.search(r'(?:^|,\s*)O=(?:"([^"]*)"|([^,]*))', subject)
+    return (m.group(1) or m.group(2) or "").strip() if m else ""
+
+
 def must_be_signed(path, by):
     status, subject = signer(path)
-    if status != "Valid" or by not in subject:
+    if status != "Valid" or signer_org(subject) != SIGNERS[by]:
         raise SystemExit(f"{path.name} is not signed by {by} ({status}, {subject[:80]}): stopping")
     log(f"{path.name}: signed by {by}")
+
+
+def builder_marks():
+    """Byte strings that give away the PC that builds: its Windows user folder, as text and as UTF-16."""
+    user = (os.environ.get("USERNAME") or "").strip()
+    marks = []
+    if user:
+        for form in ("\\Users\\" + user, "/Users/" + user):
+            marks += [form.lower().encode("utf-8"), form.lower().encode("utf-16-le")]
+    return marks
+
+
+def files_with_builder_marks(folder, marks=None):
+    """Files under folder that hold the builder's Windows user folder (relative paths; never the name itself)."""
+    marks = builder_marks() if marks is None else marks
+    found = []
+    for p in sorted(Path(folder).rglob("*")):
+        if p.is_file() and marks:
+            data = p.read_bytes().lower()
+            if any(m in data for m in marks):
+                found.append(p.relative_to(folder).as_posix())
+    return found
+
+
+def must_be_clean(folder, what):
+    found = files_with_builder_marks(folder)
+    if found:
+        raise SystemExit(f"{what}: {len(found)} file(s) hold this PC's Windows user folder, for example "
+                         + ", ".join(found[:5]) + ": stopping (nothing is published)")
+    log(f"{what}: no file holds this PC's Windows user folder")
 
 
 def build(keep_apk=False):
@@ -161,9 +232,14 @@ def build(keep_apk=False):
     site = py / "Lib" / "site-packages"
     pins = [f"{dist_name}=={importlib.metadata.version(local)}" for local, dist_name in PACKAGES]
     log("packages: " + ", ".join(pins))
+    # --no-compile: pip's .pyc files remember the temp folder they were compiled in (inside this PC's user
+    # folder). Python compiles on the friend's PC instead, into the tacocam-cache folder (tacocam/__init__.py).
     subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "--no-deps", "--only-binary=:all:",
+                    "--no-compile",
                     "--platform", "win_amd64", "--python-version", f"{sys.version_info.major}.{sys.version_info.minor}",
                     "--implementation", "cp", "--target", str(site), *pins], check=True)
+    # pip's launcher programs (f2py.exe, pyav.exe ...) hold the path of this PC's Python; Taco Cam uses none
+    shutil.rmtree(site / "bin", ignore_errors=True)
 
     pth = next(py.glob("python3*._pth"))
     lines = [ln for ln in pth.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith("#")]
@@ -199,6 +275,7 @@ def build(keep_apk=False):
         shutil.copy2(GUIDE, top / GUIDE.name)
     shutil.copy2(REPO / "LICENSE", top / "LICENSE.txt")
 
+    must_be_clean(stage, "the folder to pack")
     DIST.mkdir(exist_ok=True)
     tmp = ZIP.with_suffix(".part")
     with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
@@ -213,6 +290,7 @@ def build(keep_apk=False):
 SMOKE = r"""
 import sys, time, threading
 sys.path.insert(0, r"{tools}")
+import tacocam                      # first: it sends Python's compiled files to the tacocam-cache folder
 import tkinter
 r = tkinter.Tk(); r.withdraw(); r.update(); r.destroy()
 import av, cv2, numpy, PIL, pyvirtualcam
@@ -282,7 +360,15 @@ def test(zip_path):
     try:
         with zipfile.ZipFile(zip_path) as z:
             z.extractall(where)
-        good = run_smoke(where / FOLDER)
+        leaks = files_with_builder_marks(where)
+        if leaks:
+            log(f"the zip holds this PC's Windows user folder in {len(leaks)} file(s): " + ", ".join(leaks[:5]))
+        good = run_smoke(where / FOLDER) and not leaks
+        stray = [p for p in (where / FOLDER).rglob("__pycache__")
+                 if p.parent != where / FOLDER / "pc" / "tacocam" and "tacocam-cache" not in p.parts]
+        if stray:
+            log("compiled files outside tacocam-cache: " + ", ".join(str(p.relative_to(where)) for p in stray[:5]))
+        good = good and not stray
         log("zip test: " + ("PASSED" if good else "FAILED"))
         return good
     finally:
@@ -308,8 +394,28 @@ def test_installer(exe):
         if left:
             log("left after uninstalling: " + ", ".join(left[:10]))
         good = good and not left
+        good = refuses_a_used_folder(exe) and good
         log("installer test: " + ("PASSED" if good else "FAILED"))
         return good
+    finally:
+        shutil.rmtree(where, ignore_errors=True)
+
+
+def refuses_a_used_folder(exe):
+    """The setup must not install into a folder that holds somebody's own files (the uninstaller would have to
+    guess what is theirs; WEBCAM-20261128-05): it stops, and their file is still there."""
+    where = Path(tempfile.mkdtemp(prefix="tacocam_used_"))
+    try:
+        theirs = where / "python" / "keep.txt"
+        theirs.parent.mkdir()
+        theirs.write_text("somebody's own file", encoding="utf-8")
+        r = subprocess.run([str(exe), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOICONS", "/TASKS=",
+                            f"/DIR={where}"], timeout=300)
+        installed = (where / "pc").exists() or (where / "unins000.exe").exists()
+        ok = r.returncode != 0 and not installed and theirs.is_file()
+        if not ok:
+            log(f"the setup did not refuse a folder that is in use (exit {r.returncode}, installed: {installed})")
+        return ok
     finally:
         shutil.rmtree(where, ignore_errors=True)
 

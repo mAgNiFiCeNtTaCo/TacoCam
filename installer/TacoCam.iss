@@ -71,11 +71,60 @@ Filename: "{app}\How to set up Taco Cam.html"; Description: "Read the setup guid
 Type: files; Name: "{app}\settings.json"
 Type: files; Name: "{app}\settings.bad.json"
 Type: files; Name: "{app}\taco-cam.log*"
-; Python's __pycache__ folders appear all over its own two folders while Taco Cam runs: remove those folders whole.
-Type: filesandordirs; Name: "{app}\pc"
-Type: filesandordirs; Name: "{app}\python"
+; Python's compiled files: Taco Cam keeps them in its own folder tacocam-cache (pc\tacocam\__init__.py); only that
+; file itself is compiled before the folder is chosen. Never whole folders with everyday names like pc or python:
+; the person may have picked a folder that holds their own (security finding WEBCAM-20261128-05).
+Type: filesandordirs; Name: "{app}\tacocam-cache"
+Type: filesandordirs; Name: "{app}\pc\tacocam\__pycache__"
+; Folders the setup made, removed only when nothing is left in them.
+Type: dirifempty; Name: "{app}\pc\tacocam"
+Type: dirifempty; Name: "{app}\pc"
+Type: dirifempty; Name: "{app}\python"
+Type: dirifempty; Name: "{app}"
 
 [Code]
+{ A folder that already holds something other than Taco Cam is refused: the setup and the uninstaller then only
+  ever deal with files Taco Cam put there. }
+function FolderIsInUse(Dir: String): Boolean;
+var
+  Rec: TFindRec;
+begin
+  Result := False;
+  if FileExists(AddBackslash(Dir) + 'pc\tacocam\__main__.py') then
+    exit;                                             { an earlier Taco Cam: updating it is fine }
+  if FindFirst(AddBackslash(Dir) + '*', Rec) then
+  begin
+    try
+      repeat
+        if (Rec.Name <> '.') and (Rec.Name <> '..') then
+          Result := True;
+      until Result or not FindNext(Rec);
+    finally
+      FindClose(Rec);
+    end;
+  end;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpSelectDir) and FolderIsInUse(WizardDirValue) then
+  begin
+    MsgBox('That folder already has other files in it.' + #13#10 + #13#10 +
+      'Pick an empty folder, or a new one such as "' + AddBackslash(WizardDirValue) + 'Taco Cam".',
+      mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+{ The same check for a silent install, which shows no folder page. }
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if FolderIsInUse(ExpandConstant('{app}')) then
+    Result := 'The folder ' + ExpandConstant('{app}') + ' already has other files in it. Pick an empty folder.';
+end;
+
 { Uninstalling: turn off the "Open Taco Cam when I log in" shortcut, but only when it starts this copy (another
   Taco Cam on this PC keeps its own). Then offer to remove the "Taco Cam" camera from OBS (needs admin; No by
   default, because another Taco Cam on this PC may use the same camera). }
@@ -88,7 +137,7 @@ begin
   begin
     if FileExists(ExpandConstant('{#Py}')) then
       Exec(ExpandConstant('{#Py}'),
-        '-c "import sys; from tacocam import shortcuts; shortcuts.remove_autostart_of(sys.argv[1])" "' +
+        '-B -c "import sys; from tacocam import shortcuts; shortcuts.remove_autostart_of(sys.argv[1])" "' +
         ExpandConstant('{app}') + '"', ExpandConstant('{app}\pc'), SW_HIDE, ewWaitUntilTerminated, Code);
     Bat := ExpandConstant('{app}\pc\vcam\Uninstall Taco Cam camera.bat');
     if (not UninstallSilent) and FileExists(Bat) and

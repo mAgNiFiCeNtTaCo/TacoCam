@@ -57,8 +57,8 @@ into the PC with its USB cable. Do the setup once. After that it's plug in and g
      <b>Get started</b> on top of it.</p>
   <p class="tip">If Windows asks whether to run it, click <span class="ui">Run</span>. If it says "Windows protected
      your PC", click <span class="ui">More info</span>, then <span class="ui">Run anyway</span>. Windows asks
-     because the start file is new to it. The programs inside are signed by the Python Software Foundation
-     and by Google.</p>
+     because the start file is new to it. Python and the phone tool (adb) inside are signed by their makers,
+     the Python Software Foundation and Google.</p>
 </div>
 
 <h2>1. Or: the installer</h2>
@@ -100,6 +100,9 @@ into the PC with its USB cable. Do the setup once. After that it's plug in and g
     <li>Plug the phone into the PC. The phone asks "Allow USB debugging?". Tick
         <span class="ui">Always allow from this computer</span> and tap <span class="ui">Allow</span>.</li>
   </ol>
+  <p class="tip">With USB debugging on, a PC you allowed can install apps on the phone, read its
+     files and control its screen over the cable, also when Taco Cam is closed. So tick "Always allow" only on
+     your own PC. Not streaming for a while? Switch USB debugging off. Taco Cam asks for it again next time.</p>
   <p>That's it. Taco Cam installs its app on the phone and opens it, which takes about 10 seconds. The phone
      shows the camera and "Connected to the PC", and the Taco Cam window shows the picture.</p>
   <p class="tip">Xiaomi, Redmi and POCO phones also need <span class="ui">Install via USB</span> switched on in
@@ -122,7 +125,8 @@ into the PC with its USB cable. Do the setup once. After that it's plug in and g
   <p class="tip">With NVIDIA: Whatnot's <b>Update Profile</b> makes its own profile called "Whatnot Live
      (Recommended)" with Standard (x264) and switches OBS to it. To use NVIDIA again, close OBS, open Get started
      and click <span class="ui">Re-apply NVIDIA settings</span>.</p>
-  <p>If OBS's connection for other programs was off, Taco Cam switches it on and shows you its password.
+  <p>If OBS's connection for other programs was off, or on without a password, Taco Cam switches it on with a
+     password and shows it to you. Without a password, anyone on your network could control OBS.
      It also copies the password, so you can paste it. Whatnot's Show Tools asks for this password.
      You can find it again in OBS under <span class="ui">Tools</span> &gt;
      <span class="ui">WebSocket Server Settings</span>.</p>
@@ -173,17 +177,20 @@ into the PC with its USB cable. Do the setup once. After that it's plug in and g
       its case and use the <span class="ui">Dim</span> button.</dd>
 
   <dt>My browser or antivirus says "Virus detected"</dt>
-  <dd>That's a false alarm about the zip. Every program in it is signed by the Python Software Foundation or
-      Google. Taco Cam's own part is plain text files you can read. Ask the person who sent it for a fresh copy,
-      or let your antivirus keep the file.</dd>
+  <dd>New downloads that few people have used yet often get this warning. Python and adb in the zip are signed
+      by their makers. The picture and video parts are the standard packages from PyPI (av, numpy, OpenCV, Pillow,
+      pyvirtualcam). Taco Cam's own part is plain text files you can read. To be sure you have the real file,
+      compare its SHA-256 with the one on the download page. If they match, let your antivirus keep the file. If
+      they don't, or the warning names a file that isn't in the Taco Cam folder, don't run it.</dd>
 </dl>
 
 <h2>Removing Taco Cam</h2>
 <ul>
   <li>The camera: in the Taco Cam folder open <b>pc</b> &gt; <b>vcam</b> and double-click
       <b>Uninstall Taco Cam camera</b>.</li>
-  <li>The PC program: delete the Taco Cam folder.</li>
-  <li>The phone: uninstall the Taco Cam app like any app, and switch off USB debugging if you like.</li>
+  <li>The PC program: delete the Taco Cam folder. If you used the installer, remove it under Windows Settings
+      &gt; Apps instead.</li>
+  <li>The phone: uninstall the Taco Cam app like any app, and switch USB debugging off again.</li>
   <li>OBS: the <b>Taco Cam Whatnot</b> profile and scene collection can be removed from OBS's Profile and Scene
       Collection menus.</li>
 </ul>

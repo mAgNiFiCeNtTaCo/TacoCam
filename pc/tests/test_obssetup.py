@@ -41,6 +41,25 @@ def test_writes_profile_collection_and_switches(obs):
     assert ws["server_enabled"] and ws["auth_required"] and ws["server_password"] == res["websocket_password"]
 
 
+def test_websocket_on_without_a_password_gets_one(obs):
+    """OBS's connection switched on with "Enable Authentication" off: anyone on the network could control OBS.
+    The setup switches the password on and says so (security finding WEBCAM-20261128-04)."""
+    ws = obs / "plugin_config" / "obs-websocket"
+    ws.mkdir(parents=True)
+    (ws / "config.json").write_text(json.dumps({"server_enabled": True, "server_port": 4466, "auth_required": False,
+                                                "server_password": ""}))
+    res = O.setup(obs, check_running=False)
+    after = json.loads((ws / "config.json").read_text())
+    assert after["server_enabled"] and after["auth_required"] and len(after["server_password"]) == 16
+    assert res["websocket_password"] == after["server_password"] and res["websocket_port"] == 4466
+    assert res["websocket_new"] is True and res["websocket_was_open"] is True
+    assert (ws / "config.json.bak-tacocam").exists()
+
+
+def test_websocket_that_was_off_is_not_called_open(obs):
+    assert O.setup(obs, check_running=False)["websocket_was_open"] is False
+
+
 def test_existing_websocket_and_service_are_kept(obs):
     ws = obs / "plugin_config" / "obs-websocket"
     ws.mkdir(parents=True)
@@ -51,6 +70,7 @@ def test_existing_websocket_and_service_are_kept(obs):
     (prof / "service.json").write_text('{"type":"whip_custom","settings":{"server":"kept"}}')
     res = O.setup(obs, check_running=False)
     assert res["websocket_new"] is False and res["websocket_password"] == "theirs" and res["websocket_port"] == 4466
+    assert res["websocket_was_open"] is False
     assert "kept" in (prof / "service.json").read_text()
     O.setup(obs, check_running=False)                               # running it twice is fine
     assert (obs / "basic" / "scenes" / "Taco_Cam_Whatnot.json.bak-tacocam").exists()

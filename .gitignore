@@ -15,5 +15,6 @@ android/app/build/
 android/local.properties
 *.jks
 *.keystore
-keystore*.properties
+*keystore*.properties
+*.p12
 build/

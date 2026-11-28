@@ -258,15 +258,18 @@ def _write_profile(folder, videos, encoder="x264"):
 
 
 def _websocket(obs):
-    """Switch obs-websocket on (with a new password) when it is off. -> (password or None, port, made_new)."""
+    """Switch obs-websocket on with a new password when it is off, and also when it is on WITHOUT a password
+    (then anyone on the same network could control OBS; security finding WEBCAM-20261128-04).
+    -> (password, port, made_new, was_open)."""
     cfg_file = obs / "plugin_config" / "obs-websocket" / "config.json"
     try:
         cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         cfg = {}
     port = int(cfg.get("server_port") or 4455)
-    if cfg.get("server_enabled") and (cfg.get("server_password") or not cfg.get("auth_required")):
-        return cfg.get("server_password") if cfg.get("auth_required") else None, port, False
+    if cfg.get("server_enabled") and cfg.get("auth_required") and cfg.get("server_password"):
+        return cfg.get("server_password"), port, False, False
+    was_open = bool(cfg.get("server_enabled"))        # on, but with no password asked
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
     password = "".join(secrets.choice(alphabet) for _ in range(16))
     cfg.update(server_enabled=True, server_port=port, auth_required=True, server_password=password,
@@ -274,7 +277,7 @@ def _websocket(obs):
     cfg_file.parent.mkdir(parents=True, exist_ok=True)
     _backup(cfg_file)
     cfg_file.write_text(json.dumps(cfg, indent=4), encoding="utf-8", newline="")
-    return password, port, True
+    return password, port, True, was_open
 
 
 def _ready(obs, check_running):
@@ -312,7 +315,8 @@ def apply_encoder(encoder, obs=None, check_running=True):
 
 def setup(obs=None, check_running=True, encoder="x264"):
     """Write the profile and collection and make OBS open on them. encoder: "x264" (any PC) or "nvenc" (NVIDIA).
-    -> {"profile", "collection", "encoder", "websocket_password", "websocket_port", "websocket_new"}.
+    -> {"profile", "collection", "encoder", "websocket_password", "websocket_port", "websocket_new",
+        "websocket_was_open"} (was_open: OBS's connection was on without a password; it has one now).
     Raises SetupProblem."""
     obs = _ready(obs, check_running)
     _encoder(encoder)
@@ -332,6 +336,6 @@ def setup(obs=None, check_running=True, encoder="x264"):
             wrote = True
     if not wrote:
         set_ini(obs / "user.ini", "Basic", choice)
-    password, port, new = _websocket(obs)
+    password, port, new, was_open = _websocket(obs)
     return {"profile": NAME, "collection": NAME, "encoder": encoder, "websocket_password": password,
-            "websocket_port": port, "websocket_new": new}
+            "websocket_port": port, "websocket_new": new, "websocket_was_open": was_open}
