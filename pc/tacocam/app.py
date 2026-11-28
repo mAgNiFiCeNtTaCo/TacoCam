@@ -1061,7 +1061,7 @@ class App:
         """Put the NVENC settings on the profile OBS opens on now (OBS closed). -> its name or None."""
         parent = self.setup_win or self.root
         try:
-            name = obssetup.apply_encoder("nvenc")
+            name, kbps = obssetup.apply_encoder("nvenc")
         except obssetup.SetupProblem as e:
             messagebox.showwarning("Taco Cam", str(e), parent=parent)
             return None
@@ -1069,7 +1069,7 @@ class App:
             messagebox.showerror("Taco Cam", f"OBS could not be changed: {e}", parent=parent)
             return None
         self.log(f'OBS: NVIDIA (NVENC) stream settings put on profile "{name}"')
-        messagebox.showinfo("Taco Cam", f'OBS profile "{name}" streams with NVIDIA (NVENC) again: CBR 3500 kbps, '
+        messagebox.showinfo("Taco Cam", f'OBS profile "{name}" streams with NVIDIA (NVENC) again: CBR {kbps} kbps, '
                             f"a keyframe every 2 seconds, no B-frames. The old settings were saved next to it "
                             f"(.bak-tacocam).\n\nOpen OBS now.", parent=parent)
         return name

@@ -128,7 +128,7 @@ def test_reapply_nvenc_on_whatnots_profile(obs, monkeypatch):
     monkeypatch.setattr(O, "has_nvidia", lambda: True)
     prof = _whatnot_profile(obs)
     service_before = (prof / "service.json").read_bytes()
-    assert O.apply_encoder("nvenc", obs, check_running=False) == "Whatnot Live (Recommended)"
+    assert O.apply_encoder("nvenc", obs, check_running=False) == ("Whatnot Live (Recommended)", 3500)
     assert json.loads((prof / "streamEncoder.json").read_text()) == NVENC
     assert O.get_ini(prof / "basic.ini", "AdvOut", "Encoder") == "obs_nvenc_h264_tex"
     assert O.get_ini(prof / "basic.ini", "AdvOut", "AudioEncoder") == "ffmpeg_opus"     # the rest is kept
@@ -150,14 +150,60 @@ def test_reapply_refuses_while_obs_runs_and_writes_nothing(obs, monkeypatch):
     assert not (prof / "basic.ini.bak-tacocam").exists() and not _prof(obs).exists()
 
 
-def test_reapply_needs_nvidia_and_advanced_mode(obs, monkeypatch):
+# What Whatnot's "Update Profile" writes (checked on the user's PC, 2026-11-28): Simple output mode, x264.
+WHATNOT_SIMPLE = """[General]
+Name=Whatnot Live (Recommended)
+
+[Output]
+Mode=Simple
+Reconnect=true
+
+[SimpleOutput]
+VBitrate=3000
+ABitrate=128
+UseAdvanced=true
+Preset=veryfast
+NVENCPreset2=p5
+StreamAudioEncoder=opus
+StreamEncoder=x264
+x264Settings=keyint=60 tune=zerolatency profile=main scenecut=0
+
+[AdvOut]
+ApplyServiceSettings=true
+TrackIndex=1
+Encoder=obs_x264
+RecEncoder=none
+Track1Bitrate=160
+"""
+
+
+def test_reapply_moves_a_simple_profile_to_advanced(obs, monkeypatch):
     prof = _whatnot_profile(obs, mode="Simple")
+    (prof / "basic.ini").write_text(WHATNOT_SIMPLE, encoding="utf-8")
+    service_before = (prof / "service.json").read_bytes()
     with pytest.raises(O.SetupProblem, match="NVIDIA graphics card"):
         O.apply_encoder("nvenc", obs, check_running=False)
     monkeypatch.setattr(O, "has_nvidia", lambda: True)
-    with pytest.raises(O.SetupProblem, match="Simple output mode"):
-        O.apply_encoder("nvenc", obs, check_running=False)
-    assert json.loads((prof / "streamEncoder.json").read_text()) == X264
+    assert O.apply_encoder("nvenc", obs, check_running=False) == ("Whatnot Live (Recommended)", 3000)
+    ini = prof / "basic.ini"
+    assert O.get_ini(ini, "Output", "Mode") == "Advanced"
+    assert O.get_ini(ini, "AdvOut", "Encoder") == "obs_nvenc_h264_tex"
+    assert O.get_ini(ini, "AdvOut", "AudioEncoder") == "ffmpeg_opus"                   # WHIP needs Opus
+    assert O.get_ini(ini, "AdvOut", "Track1Bitrate") == "128" and O.get_ini(ini, "AdvOut", "TrackIndex") == "1"
+    assert O.get_ini(ini, "AdvOut", "ApplyServiceSettings") == "true"
+    assert O.get_ini(ini, "AdvOut", "RecEncoder") == "none"                             # the rest is kept
+    assert O.get_ini(ini, "SimpleOutput", "VBitrate") == "3000"
+    assert json.loads((prof / "streamEncoder.json").read_text()) == dict(NVENC, bitrate=3000)   # Whatnot's bitrate
+    assert "Mode=Simple" in (prof / "basic.ini.bak-tacocam").read_text(encoding="utf-8")
+    assert (prof / "service.json").read_bytes() == service_before
+
+
+def test_reapply_keeps_bitrate_within_whatnots_limit(obs, monkeypatch):
+    monkeypatch.setattr(O, "has_nvidia", lambda: True)
+    prof = _whatnot_profile(obs, mode="Simple")
+    (prof / "basic.ini").write_text(WHATNOT_SIMPLE.replace("VBitrate=3000", "VBitrate=20000"), encoding="utf-8")
+    assert O.apply_encoder("nvenc", obs, check_running=False)[1] == 3500
+    assert json.loads((prof / "streamEncoder.json").read_text())["bitrate"] == 3500
 
 
 def test_has_nvidia_needs_the_card_and_its_encoder(monkeypatch, tmp_path):

@@ -141,12 +141,12 @@ def test_reapply_nvenc_button(tk_root, tmp_path, monkeypatch):
     monkeypatch.setattr(app_mod.obssetup, "has_nvidia", lambda: True)
     app, eng, path = _app(tk_root, tmp_path)
     calls, shown, warned = [], [], []
-    monkeypatch.setattr(app_mod.obssetup, "apply_encoder", lambda enc: calls.append(enc) or "Whatnot Live (Recommended)")
+    monkeypatch.setattr(app_mod.obssetup, "apply_encoder", lambda enc: calls.append(enc) or ("Whatnot Live (Recommended)", 3500))
     monkeypatch.setattr(app_mod.messagebox, "showinfo", lambda title, text, **k: shown.append(text))
     monkeypatch.setattr(app_mod.messagebox, "showwarning", lambda title, text, **k: warned.append(text))
     try:
         assert app.reapply_nvenc() == "Whatnot Live (Recommended)"
-        assert calls == ["nvenc"] and "Whatnot Live (Recommended)" in shown[0]
+        assert calls == ["nvenc"] and "Whatnot Live (Recommended)" in shown[0] and "CBR 3500 kbps" in shown[0]
 
         def refuse(enc):
             raise app_mod.obssetup.SetupProblem("OBS is open: close OBS first")

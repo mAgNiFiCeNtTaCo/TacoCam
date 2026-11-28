@@ -53,7 +53,9 @@ explain in plain words and finish jobs end to end.
   3500, keyframe 2 s, no B-frames, Opus; x264 veryfast/zerolatency, or NVENC since the user's 2026-11-28 choice, which
   the Random Questions project handles). Amazon IVS drops streams with B-frames or over 8.5 Mbps. Get started's
   "Set up OBS" offers x264 or NVENC (NVIDIA PCs only, `obssetup.ENCODERS`) and "Re-apply NVIDIA settings" rewrites
-  the active profile's encoder (only on the user's click, OBS closed, never service.json). Tests patch
+  the active profile's encoder (only on the user's click, OBS closed, never service.json). Whatnot's "Update Profile"
+  profile is in Simple output mode, which has no NVENC keyframe setting: Re-apply moves it to Advanced (Opus, its
+  VBitrate/ABitrate, keyint 2 s). Tests patch
   `obssetup.has_nvidia` and `obs_dir` (conftest).
 - The window saves `settings.json` on close: close it (WM_CLOSE) before editing the file, then reopen. Ask before
   restarting it (OBS may be live).

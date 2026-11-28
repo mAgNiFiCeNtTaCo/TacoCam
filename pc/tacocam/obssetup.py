@@ -113,16 +113,41 @@ def _encoder(encoder):
     return ENCODERS[encoder]
 
 
+def _int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _write_encoder(folder, encoder):
     """Point the profile's stream at the encoder and write its settings (basic.ini and streamEncoder.json are
-    backed up first). service.json (the stream key) is never read or changed."""
+    backed up first). service.json (the stream key) is never read or changed. -> the stream's bitrate.
+
+    A profile in OBS's Simple output mode (the one Whatnot's "Update Profile" makes) is moved to Advanced: Simple
+    mode has no keyframe setting for NVENC (Whatnot's profile sets its 2 s keyframe in the x264-only x264Settings),
+    so NVENC there would send a keyframe only every ~8 s. Advanced gets the same stream: Whatnot's video bitrate
+    (VBitrate), Opus audio at its ABitrate on track 1, and the service's settings applied (WHIP: no B-frames)."""
     obs_id, values = ENCODERS[encoder]
+    values = dict(values)
     ini = folder / "basic.ini"
+    adv = {"Encoder": obs_id}
+    simple = (get_ini(ini, "Output", "Mode") or "Simple") != "Advanced"
+    if simple:
+        vbitrate = _int(get_ini(ini, "SimpleOutput", "VBitrate"))
+        if vbitrate and 500 <= vbitrate <= 8500:                 # Amazon IVS drops streams over 8.5 Mbps
+            values["bitrate"] = vbitrate
+        abitrate = _int(get_ini(ini, "SimpleOutput", "ABitrate")) or 160
+        adv.update({"AudioEncoder": "ffmpeg_opus", "TrackIndex": 1, "Track1Bitrate": abitrate,
+                    "ApplyServiceSettings": "true"})
     _backup(ini)
-    set_ini(ini, "AdvOut", {"Encoder": obs_id})
+    if simple:
+        set_ini(ini, "Output", {"Mode": "Advanced"})
+    set_ini(ini, "AdvOut", adv)
     enc = folder / "streamEncoder.json"
     _backup(enc)
     enc.write_text(json.dumps(values, indent=4), encoding="utf-8", newline="")
+    return values["bitrate"]
 
 
 def _backup(p):
@@ -274,18 +299,15 @@ def active_profile(obs):
 
 def apply_encoder(encoder, obs=None, check_running=True):
     """Put the encoder's settings on the profile OBS opens on now (e.g. after Whatnot's "Update Profile" made and
-    switched to its own x264 profile). Only basic.ini's encoder line and streamEncoder.json change, both backed
-    up first. -> the profile's name. Raises SetupProblem."""
+    switched to its own x264 profile, in Simple output mode: see _write_encoder). Only basic.ini's output lines and
+    streamEncoder.json change, both backed up first. -> (the profile's name, the stream's bitrate in kbps).
+    Raises SetupProblem."""
     obs = _ready(obs, check_running)
     _encoder(encoder)
     folder, name = active_profile(obs)
     if folder is None or not (folder / "basic.ini").exists():
         raise SetupProblem("Couldn't find the profile OBS opens on: open OBS once, close it, then click again")
-    if (get_ini(folder / "basic.ini", "Output", "Mode") or "Simple") != "Advanced":
-        raise SetupProblem(f'OBS profile "{name}" uses the Simple output mode. In OBS: Settings > Output > '
-                           f'Output Mode: Advanced, OK, close OBS, then click again')
-    _write_encoder(folder, encoder)
-    return name
+    return name, _write_encoder(folder, encoder)
 
 
 def setup(obs=None, check_running=True, encoder="x264"):
