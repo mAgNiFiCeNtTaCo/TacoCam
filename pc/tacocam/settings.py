@@ -53,6 +53,7 @@ DEFAULTS = {
         "preview_turn": 0,
         "welcome": False,          # show the "Get started" window when Taco Cam opens (the friend's copy starts True)
         "obs_setup_done": False,   # the "Set up OBS" step ran (obssetup.py)
+        "obs_encoder": "auto",     # Set up OBS: "x264", "nvenc" (NVIDIA only) or "auto" (nvenc on an NVIDIA PC)
     },
     "presets": [],
 }
@@ -78,6 +79,7 @@ ENUMS = {
     "pc.clip_seconds": {15, 30, 60},
     "pc.clip_rotate": {"auto", 0, 90, 180, 270},
     "pc.preview_turn": {0, 90, 180, 270},
+    "pc.obs_encoder": {"auto", "x264", "nvenc"},
 }
 
 RANGES = {

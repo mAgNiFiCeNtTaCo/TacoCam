@@ -305,6 +305,7 @@ class App:
         self.check_win = None
         self.setup_win = None
         self._setup_shown = None
+        self._nvidia = None            # an NVIDIA card for OBS's NVENC encoder (asked once)
         self._check_shown = None
         self._check_next = 0.0
         self._check_why = ""
@@ -1011,6 +1012,7 @@ class App:
                 btn.grid(row=0, column=2, rowspan=2, sticky="e", padx=(10, 0))
                 box.columnconfigure(1, weight=1)
                 self._setup_rows[key] = (mark, detail, btn)
+            self._encoder_box(body)
             self._setup_done_label = ttk.Label(body, text="", wraplength=520, justify="left")
             self._setup_done_label.pack(anchor="w", pady=(10, 6))
             row = ttk.Frame(body)
@@ -1021,6 +1023,56 @@ class App:
         self._fill_setup()
         self.setup_win.deiconify()
         self.setup_win.lift()
+
+    def has_nvidia(self):
+        if self._nvidia is None:
+            self._nvidia = obssetup.has_nvidia()
+        return self._nvidia
+
+    def obs_encoder(self):
+        """The encoder "Set up OBS" uses: NVENC on an NVIDIA PC unless x264 was picked, else x264."""
+        want = self.settings["pc"].get("obs_encoder", "auto")
+        return "nvenc" if self.has_nvidia() and want in ("auto", "nvenc") else "x264"
+
+    def _encoder_box(self, body):
+        """Under step 3: which encoder OBS streams with. NVIDIA is only offered on a PC with an NVIDIA card."""
+        box = ttk.Frame(body, padding=(28, 0, 0, 4))
+        box.pack(fill="x")
+        self._encoder_buttons = {}
+        if not self.has_nvidia():
+            ttk.Label(box, text="Stream encoder: Standard (x264). The NVIDIA option needs an NVIDIA graphics card.",
+                      style="Muted.TLabel", wraplength=470, justify="left").pack(anchor="w")
+            return
+        ttk.Label(box, text="Stream encoder for OBS:").pack(anchor="w")
+        self._encoder_var = tk.StringVar(value=self.obs_encoder())
+        for value, label in (("nvenc", "NVIDIA (NVENC): uses the graphics card, frees the processor"),
+                             ("x264", "Standard (x264): works on any PC")):
+            b = ttk.Radiobutton(box, text=label, value=value, variable=self._encoder_var, style="Seg.Toolbutton",
+                                command=lambda: self.apply({"pc": {"obs_encoder": self._encoder_var.get()}}))
+            b.pack(anchor="w", pady=1)
+            self._encoder_buttons[value] = b
+        ttk.Label(box, text='Whatnot\'s "Update Profile" in Show Tools makes its own x264 profile ("Whatnot Live '
+                            '(Recommended)") and switches OBS to it. To use NVIDIA again after that: close OBS, '
+                            'then click Re-apply NVIDIA settings.',
+                  style="Muted.TLabel", wraplength=470, justify="left").pack(anchor="w", pady=(2, 0))
+        ttk.Button(box, text="Re-apply NVIDIA settings", command=self.reapply_nvenc).pack(anchor="w", pady=(4, 0))
+
+    def reapply_nvenc(self):
+        """Put the NVENC settings on the profile OBS opens on now (OBS closed). -> its name or None."""
+        parent = self.setup_win or self.root
+        try:
+            name = obssetup.apply_encoder("nvenc")
+        except obssetup.SetupProblem as e:
+            messagebox.showwarning("Taco Cam", str(e), parent=parent)
+            return None
+        except OSError as e:
+            messagebox.showerror("Taco Cam", f"OBS could not be changed: {e}", parent=parent)
+            return None
+        self.log(f'OBS: NVIDIA (NVENC) stream settings put on profile "{name}"')
+        messagebox.showinfo("Taco Cam", f'OBS profile "{name}" streams with NVIDIA (NVENC) again: CBR 3500 kbps, '
+                            f"a keyframe every 2 seconds, no B-frames. The old settings were saved next to it "
+                            f"(.bak-tacocam).\n\nOpen OBS now.", parent=parent)
+        return name
 
     def close_setup(self):
         w, self.setup_win = self.setup_win, None
@@ -1065,7 +1117,7 @@ class App:
 
     def setup_obs(self):
         try:
-            res = obssetup.setup()
+            res = obssetup.setup(encoder=self.obs_encoder())
         except obssetup.SetupProblem as e:
             messagebox.showwarning("Taco Cam", str(e), parent=self.setup_win or self.root)
             return None
@@ -1074,8 +1126,13 @@ class App:
             return None
         self.apply({"pc": {"obs_setup_done": True}})
         self.log(f'OBS set up: profile and scene collection "{res["profile"]}"')
+        enc = res.get("encoder", "x264")
         text = (f'OBS is set up: profile and scene collection "{res["profile"]}", with the Taco Cam camera '
-                f"filling the tall Whatnot picture.\n\nOpen OBS now.")
+                f"filling the tall Whatnot picture. Stream encoder: {obssetup.ENCODER_NAMES[enc]}.")
+        if enc == "nvenc":
+            text += ('\n\nWhatnot\'s "Update Profile" makes its own x264 profile and switches OBS to it. To use '
+                     "NVIDIA again after that: close OBS, then click Re-apply NVIDIA settings in Get started.")
+        text += "\n\nOpen OBS now."
         if res.get("websocket_password"):
             self.root.clipboard_clear()
             self.root.clipboard_append(res["websocket_password"])

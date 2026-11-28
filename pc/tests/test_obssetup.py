@@ -74,3 +74,99 @@ def test_set_ini_adds_and_replaces(tmp_path):
     O.set_ini(p, "B", {"z": 4})
     text = p.read_text(encoding="utf-8")
     assert "x=2" in text and "y=3" in text and "[B]" in text and "z=4" in text and "x=1" not in text
+
+
+X264 = {"rate_control": "CBR", "bitrate": 3500, "keyint_sec": 2, "preset": "veryfast", "tune": "zerolatency",
+        "x264opts": "bframes=0"}
+NVENC = {"rate_control": "CBR", "bitrate": 3500, "keyint_sec": 2, "preset2": "p5", "tune": "hq", "multipass": "qres",
+         "profile": "main", "bf": 0, "lookahead": False, "psycho_aq": True}
+
+
+def _prof(obs):
+    return obs / "basic" / "profiles" / "Taco_Cam_Whatnot"
+
+
+def test_x264_choice_writes_the_whatnot_setup(obs):
+    res = O.setup(obs, check_running=False, encoder="x264")
+    assert res["encoder"] == "x264"
+    assert json.loads((_prof(obs) / "streamEncoder.json").read_text()) == X264
+    assert O.get_ini(_prof(obs) / "basic.ini", "AdvOut", "Encoder") == "obs_x264"
+
+
+def test_nvenc_choice_writes_the_nvidia_setup(obs, monkeypatch):
+    monkeypatch.setattr(O, "has_nvidia", lambda: True)
+    res = O.setup(obs, check_running=False, encoder="nvenc")
+    assert res["encoder"] == "nvenc"
+    assert json.loads((_prof(obs) / "streamEncoder.json").read_text()) == NVENC
+    ini = _prof(obs) / "basic.ini"
+    assert O.get_ini(ini, "AdvOut", "Encoder") == "obs_nvenc_h264_tex"
+    assert O.get_ini(ini, "AdvOut", "AudioEncoder") == "ffmpeg_opus" and O.get_ini(ini, "Output", "Mode") == "Advanced"
+
+
+def test_nvenc_needs_an_nvidia_card(obs):
+    with pytest.raises(O.SetupProblem, match="NVIDIA graphics card"):
+        O.setup(obs, check_running=False, encoder="nvenc")
+    assert not _prof(obs).exists()                              # nothing written
+    with pytest.raises(ValueError):
+        O.setup(obs, check_running=False, encoder="av1")
+
+
+def _whatnot_profile(obs, mode="Advanced"):
+    """A profile like the one Whatnot's "Update Profile" makes, made the active one."""
+    prof = obs / "basic" / "profiles" / "Whatnot_Live__Recommended_"
+    prof.mkdir(parents=True)
+    (prof / "basic.ini").write_text("[General]\nName=Whatnot Live (Recommended)\n\n[Output]\nMode=%s\n\n"
+                                    "[AdvOut]\nEncoder=obs_x264\nAudioEncoder=ffmpeg_opus\n" % mode, encoding="utf-8")
+    (prof / "streamEncoder.json").write_text(json.dumps(X264), encoding="utf-8")
+    (prof / "service.json").write_text('{"type":"whip_custom","settings":{"bearer_token":"SECRET"}}', encoding="utf-8")
+    O.set_ini(obs / "user.ini", "Basic", {"Profile": "Whatnot Live (Recommended)",
+                                          "ProfileDir": "Whatnot_Live__Recommended_"})
+    return prof
+
+
+def test_reapply_nvenc_on_whatnots_profile(obs, monkeypatch):
+    monkeypatch.setattr(O, "has_nvidia", lambda: True)
+    prof = _whatnot_profile(obs)
+    service_before = (prof / "service.json").read_bytes()
+    assert O.apply_encoder("nvenc", obs, check_running=False) == "Whatnot Live (Recommended)"
+    assert json.loads((prof / "streamEncoder.json").read_text()) == NVENC
+    assert O.get_ini(prof / "basic.ini", "AdvOut", "Encoder") == "obs_nvenc_h264_tex"
+    assert O.get_ini(prof / "basic.ini", "AdvOut", "AudioEncoder") == "ffmpeg_opus"     # the rest is kept
+    assert json.loads((prof / "streamEncoder.json.bak-tacocam").read_text()) == X264    # backups
+    assert "Encoder=obs_x264" in (prof / "basic.ini.bak-tacocam").read_text(encoding="utf-8")
+    assert (prof / "service.json").read_bytes() == service_before                       # stream key untouched
+    assert not (prof / "service.json.bak-tacocam").exists()
+
+
+def test_reapply_refuses_while_obs_runs_and_writes_nothing(obs, monkeypatch):
+    monkeypatch.setattr(O, "has_nvidia", lambda: True)
+    monkeypatch.setattr(O, "obs_running", lambda: True)
+    prof = _whatnot_profile(obs)
+    with pytest.raises(O.SetupProblem, match="close OBS first"):
+        O.apply_encoder("nvenc", obs)
+    with pytest.raises(O.SetupProblem, match="close OBS first"):
+        O.setup(obs, encoder="nvenc")
+    assert json.loads((prof / "streamEncoder.json").read_text()) == X264
+    assert not (prof / "basic.ini.bak-tacocam").exists() and not _prof(obs).exists()
+
+
+def test_reapply_needs_nvidia_and_advanced_mode(obs, monkeypatch):
+    prof = _whatnot_profile(obs, mode="Simple")
+    with pytest.raises(O.SetupProblem, match="NVIDIA graphics card"):
+        O.apply_encoder("nvenc", obs, check_running=False)
+    monkeypatch.setattr(O, "has_nvidia", lambda: True)
+    with pytest.raises(O.SetupProblem, match="Simple output mode"):
+        O.apply_encoder("nvenc", obs, check_running=False)
+    assert json.loads((prof / "streamEncoder.json").read_text()) == X264
+
+
+def test_has_nvidia_needs_the_card_and_its_encoder(monkeypatch, tmp_path):
+    monkeypatch.undo()                                          # the real function, with made-up inputs
+    monkeypatch.setenv("SystemRoot", str(tmp_path))
+    (tmp_path / "System32").mkdir()
+    monkeypatch.setattr(O, "gpu_names", lambda: ["AMD Radeon RX 7800 XT"])
+    assert O.has_nvidia() is False
+    monkeypatch.setattr(O, "gpu_names", lambda: ["NVIDIA GeForce RTX 3080 Ti"])
+    assert O.has_nvidia() is False                              # driver's encoder library missing
+    (tmp_path / "System32" / "nvEncodeAPI64.dll").write_bytes(b"")
+    assert O.has_nvidia() is True

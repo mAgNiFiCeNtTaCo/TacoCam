@@ -116,6 +116,12 @@ into the PC with its USB cable. Do the setup once. After that it's plug in and g
     <li>the Taco Cam camera already in the "Live" scene, turned the right way</li>
     <li>your microphone</li>
   </ul>
+  <p>Under the button you pick how OBS turns the picture into the stream. On a PC with an NVIDIA graphics card,
+     Taco Cam picks <b>NVIDIA (NVENC)</b>: the graphics card does that work, so the PC's processor stays free.
+     <b>Standard (x264)</b> works on any PC. Both send the stream the way Whatnot asks for it.</p>
+  <p class="tip">With NVIDIA: Whatnot's <b>Update Profile</b> makes its own profile called "Whatnot Live
+     (Recommended)" with Standard (x264) and switches OBS to it. To use NVIDIA again, close OBS, open Get started
+     and click <span class="ui">Re-apply NVIDIA settings</span>.</p>
   <p>If OBS's connection for other programs was off, Taco Cam switches it on and shows you its password.
      It also copies the password, so you can paste it. Whatnot's Show Tools asks for this password.
      You can find it again in OBS under <span class="ui">Tools</span> &gt;

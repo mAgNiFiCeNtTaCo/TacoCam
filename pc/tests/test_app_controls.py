@@ -63,8 +63,9 @@ def test_every_settings_key_has_a_control(app):
             walk(v, p) if isinstance(v, dict) else leaves.append(p)
     walk(S.DEFAULTS, "")
     missing = [p for p in leaves if p not in app.ctl and p not in ("pc.vcam_name", "phone.exposure.iso", "phone.exposure.shutter_s",
-                                                                 "presets", "pc.welcome", "pc.obs_setup_done")]
-    # presets: the Presets tab; welcome / obs_setup_done: kept by the "Get started" window
+                                                                 "presets", "pc.welcome", "pc.obs_setup_done",
+                                                                 "pc.obs_encoder")]
+    # presets: the Presets tab; welcome / obs_setup_done / obs_encoder: kept by the "Get started" window
     assert missing == []
     assert "phone.exposure.iso" in app.ctl and "phone.exposure.shutter_s" in app.ctl
 

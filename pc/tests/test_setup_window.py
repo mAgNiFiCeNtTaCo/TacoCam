@@ -57,7 +57,7 @@ def test_welcome_opens_by_itself_once(tk_root, tmp_path):
 def test_obs_button_runs_the_setup(tk_root, tmp_path, monkeypatch):
     app, eng, path = _app(tk_root, tmp_path, connect="android")
     shown = []
-    monkeypatch.setattr(app_mod.obssetup, "setup", lambda: {"profile": "Taco Cam Whatnot", "collection": "x",
+    monkeypatch.setattr(app_mod.obssetup, "setup", lambda **k: {"profile": "Taco Cam Whatnot", "collection": "x",
                                                             "websocket_password": "Pw123", "websocket_port": 4455,
                                                             "websocket_new": True})
     monkeypatch.setattr(app_mod.messagebox, "showinfo", lambda title, text, **k: shown.append(text))
@@ -77,7 +77,7 @@ def test_obs_problem_is_shown(tk_root, tmp_path, monkeypatch):
     app, eng, path = _app(tk_root, tmp_path)
     warned = []
 
-    def refuse():
+    def refuse(**k):
         raise app_mod.obssetup.SetupProblem("OBS is open: close OBS first")
     monkeypatch.setattr(app_mod.obssetup, "setup", refuse)
     monkeypatch.setattr(app_mod.messagebox, "showwarning", lambda title, text, **k: warned.append(text))
@@ -95,5 +95,62 @@ def test_phone_button_switches_to_android(tk_root, tmp_path):
         app._setup_action("phone")
         assert app.settings["pc"]["connect"] == "android"
         assert eng.last_update() == {"pc": {"connect": "android"}}
+    finally:
+        app.close()
+
+
+def test_encoder_choice_without_nvidia(tk_root, tmp_path, monkeypatch):
+    app, eng, path = _app(tk_root, tmp_path, connect="android")
+    asked = []
+    monkeypatch.setattr(app_mod.obssetup, "setup", lambda **k: asked.append(k) or {"profile": "P", "collection": "P",
+                                                                                   "encoder": k["encoder"]})
+    monkeypatch.setattr(app_mod.messagebox, "showinfo", lambda *a, **k: None)
+    try:
+        app.open_setup()
+        assert app._encoder_buttons == {}                       # no NVIDIA option shown
+        app.apply({"pc": {"obs_encoder": "nvenc"}})             # even if the setting says so (copied settings)
+        assert app.obs_encoder() == "x264"
+        app.setup_obs()
+        assert asked == [{"encoder": "x264"}]
+    finally:
+        app.close()
+
+
+def test_encoder_choice_with_nvidia(tk_root, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_mod.obssetup, "has_nvidia", lambda: True)
+    app, eng, path = _app(tk_root, tmp_path, connect="android")
+    asked, shown = [], []
+    monkeypatch.setattr(app_mod.obssetup, "setup", lambda **k: asked.append(k) or {"profile": "P", "collection": "P",
+                                                                                   "encoder": k["encoder"]})
+    monkeypatch.setattr(app_mod.messagebox, "showinfo", lambda title, text, **k: shown.append(text))
+    try:
+        app.open_setup()
+        assert set(app._encoder_buttons) == {"nvenc", "x264"}
+        assert app._encoder_var.get() == "nvenc"                # picked by itself on an NVIDIA PC
+        app.setup_obs()
+        assert asked[-1] == {"encoder": "nvenc"} and "NVIDIA (NVENC)" in shown[-1] and "Update Profile" in shown[-1]
+        app._encoder_buttons["x264"].invoke()
+        assert app.settings["pc"]["obs_encoder"] == "x264"
+        app.setup_obs()
+        assert asked[-1] == {"encoder": "x264"} and "Standard (x264)" in shown[-1]
+    finally:
+        app.close()
+
+
+def test_reapply_nvenc_button(tk_root, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_mod.obssetup, "has_nvidia", lambda: True)
+    app, eng, path = _app(tk_root, tmp_path)
+    calls, shown, warned = [], [], []
+    monkeypatch.setattr(app_mod.obssetup, "apply_encoder", lambda enc: calls.append(enc) or "Whatnot Live (Recommended)")
+    monkeypatch.setattr(app_mod.messagebox, "showinfo", lambda title, text, **k: shown.append(text))
+    monkeypatch.setattr(app_mod.messagebox, "showwarning", lambda title, text, **k: warned.append(text))
+    try:
+        assert app.reapply_nvenc() == "Whatnot Live (Recommended)"
+        assert calls == ["nvenc"] and "Whatnot Live (Recommended)" in shown[0]
+
+        def refuse(enc):
+            raise app_mod.obssetup.SetupProblem("OBS is open: close OBS first")
+        monkeypatch.setattr(app_mod.obssetup, "apply_encoder", refuse)
+        assert app.reapply_nvenc() is None and warned == ["OBS is open: close OBS first"]
     finally:
         app.close()

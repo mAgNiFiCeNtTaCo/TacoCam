@@ -45,9 +45,12 @@ class QuietObs:
 
 
 @pytest.fixture(autouse=True)
-def quiet_obs(monkeypatch):
-    from tacocam import app
+def quiet_obs(monkeypatch, tmp_path):
+    from tacocam import app, obssetup
     monkeypatch.setattr(app, "ObsFollower", QuietObs)
+    # No test sees this PC's graphics card (tests that want NVIDIA set it) or writes the real %APPDATA%\obs-studio.
+    monkeypatch.setattr(obssetup, "has_nvidia", lambda: False)
+    monkeypatch.setattr(obssetup, "obs_dir", lambda: tmp_path / "no-real-obs")
 
 
 @pytest.fixture
