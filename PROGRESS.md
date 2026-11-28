@@ -4,7 +4,7 @@ Taco Cam: our own iPhone-as-USB-webcam app (what Iriun Webcam does, every featur
 zoom-out). An iPhone app sends H.264/HEVC over the USB cable; a PC window shows it and feeds OBS through a
 DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break stream.
 
-## Where it stands (2026-11-26)
+## Where it stands (2026-11-28)
 - **In use**: iPhone 11 (iOS 27.0.1) over USB into OBS (Whatnot scene) and into the Whatnot card scanner.
 - iPhone app: GitHub Actions build (last green run 40258964830), `dist/TacoCam.ipa` (gitignored) installed with
   **iloader**; reinstalled 2026-11-08, so 7 days runs to ~2026-11-15 (bottom bar shows the date, orange 2 days
@@ -29,12 +29,28 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
   Emulator test on GitHub passes; not yet tried on a real Android phone. PC tests 340.
 - 2026-11-26: GitHub release v1.0 (pre-release, https://github.com/mAgNiFiCeNtTaCo/TacoCam/releases/tag/v1.0) with
   `TacoCam.zip` and the installer `TacoCam-Setup-1.0.exe` (Inno Setup, unsigned: SmartScreen warns once). README with
-  icon, build badges and screenshots. GitHub Support ticket sent for the old commits. PC tests 343.
+  icon, build badges, screenshots and a zoom demo clip; share picture uploaded. GitHub Support ticket sent for the
+  old commits (awaiting reply). PC tests 343.
 - Open: confirm the turned preview by eye; test glide / pause reasons on the real phone; front camera /
   upright check (`docs/QA.md`); scanner card finding on a busy background (54 failed frames in Whatnot
   `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
+### 2026-11-28: Demo clip, share picture, Android phone test restarted
+- 2026-11-26: demo zoom clip in the README (`docs/images/zoom.webp`, 9 s animated WebP, 360 px, 3.8 MB, cut with ffmpeg
+  from the user's own Ctrl+Alt+0 clip `Videos\Taco Cam clips\Taco Cam 2026-11-26 13-40-31.mp4`, seconds 21.5-30.5;
+  GIF was 6-7.5 MB, so WebP). The PC monitor in the shot is unreadable at that size. Slop check third pass: 0 hits.
+  Commit 9cc4d2a.
+- 2026-11-26: the user uploaded `docs/images/social-preview.png` as the repo's share picture (GraphQL
+  `usesCustomOpenGraphImage` true).
+- 2026-11-26: the user's own window was restarted by the user at 13:37 (for the clip), so it now runs the current code.
+- Android phone test: `build/friend-test/Taco Cam/` refreshed from today's `dist/TacoCam.zip`; steps given (USB
+  debugging, close the user's own window when not live, plug in, Allow). Not run yet: on 2026-11-28 adb lists no
+  phone and the test copy has no log. Next: the user reports brand/model, then `adb devices` check, then Start Taco Cam
+  in the test folder (skip Get started step 3).
+- Resources 2026-11-28 11:51: Webcam 2 processes, CPU 65% of a core (2.0% of the PC), RAM 135 MB, disk 815 MB; whole
+  PC CPU 10% of 32 threads, RAM 30.2 of 64 GB, GPU 32%.
+
 ### 2026-11-26: GitHub page, Windows installer, release v1.0, Support request
 - **GitHub page** (badd4ef): README with the app icon, the two live build badges (iPhone, Android), a window
   screenshot and the Get started screenshot (`docs/images/`, made with a pretend engine and a test picture, never the

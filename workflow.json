@@ -328,6 +328,28 @@
         "The auto-mode check blocks publishing a public GitHub release: give the user the exact `! gh release create` line.",
         "GitHub Support form: 'Deletes' is for deleting the whole repo; old-commit purges go under Repository features."
       ]
+    },
+    {
+      "title": "Demo clip, share picture, Android phone test restarted",
+      "date": "2026-11-28",
+      "summary": "Cut the user's zoom clip into a README loop, confirmed the uploaded share picture, and refreshed the Android test copy.",
+      "stages": [
+        {
+          "name": "Polish",
+          "kind": "solo",
+          "sessions": [
+            {
+              "id": "d8f52793",
+              "role": "Webcam session",
+              "start": "2026-11-26T13:35",
+              "end": "2026-11-28T11:55",
+              "did": "zoom.webp from the user's clip, share picture check, friend-test refreshed, phone test steps",
+              "outcome": "done",
+              "files": 4
+            }
+          ]
+        }
+      ]
     }
   ]
 }
