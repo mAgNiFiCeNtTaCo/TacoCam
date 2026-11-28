@@ -30,13 +30,37 @@ DirectShow camera called "Taco Cam". Used for the user's Whatnot box-break strea
 - 2026-11-26: GitHub release v1.0 (pre-release, https://github.com/mAgNiFiCeNtTaCo/TacoCam/releases/tag/v1.0) with
   `TacoCam.zip` and the installer `TacoCam-Setup-1.0.exe` (Inno Setup, unsigned: SmartScreen warns once). README with
   icon, build badges, screenshots and a zoom demo clip; share picture uploaded. GitHub Support ticket sent for the
-  old commits (awaiting reply). PC tests 343.
+  old commits (awaiting reply). PC tests 354.
+- 2026-11-28: OBS step offers NVIDIA (NVENC) or x264, with Re-apply after Whatnot's Update Profile; friend's copy rebuilt
+  and re-uploaded to v1.0; README has a diagram, a zoom comparison and a picture per settings tab.
 - Open: confirm the turned preview by eye; test glide / pause reasons on the real phone; front camera /
   upright check (`docs/QA.md`); scanner card finding on a busy background (54 failed frames in Whatnot
   `data/debug` to tune against) if Test mode shows it's still unreliable.
 
 ## Log
-### 2026-11-28: Demo clip, share picture, Android phone test restarted
+### 2026-11-28: Encoder choice (x264 / NVENC), friend's copy rebuilt, README visuals
+- **iPhone not answering** (11:50-11:55): the window saw the iPhone on USB but the app refused the connection; the
+  user swiped Taco Cam closed and reopened it, connected 11:55:21. Not the 7-day expiry.
+- **Stream encoder choice** (asked by the Random Questions session for the user, 2e777cd + 017f5f2): Get started's
+  "Set up OBS" offers NVIDIA (NVENC) or Standard (x264). `obssetup.ENCODERS`: x264 = the Whatnot setup as before;
+  nvenc = `obs_nvenc_h264_tex` + {CBR 3500, keyint 2, preset2 p5, tune hq, multipass qres, main, bf 0, no
+  lookahead, psycho_aq}. `has_nvidia()` = an NVIDIA name under the display-adapter registry class +
+  `System32\nvEncodeAPI64.dll` (finds the RTX 3080 Ti here); NVIDIA is shown and picked only on such a PC.
+  "Re-apply NVIDIA settings" (`apply_encoder`) rewrites the active profile after Whatnot's Update Profile: OBS
+  closed, basic.ini + streamEncoder.json backed up, service.json never touched. Whatnot's profile is in OBS's Simple
+  output mode, which has no NVENC keyframe setting (its 2 s keyframe is in the x264-only x264Settings; NVENC would
+  default to ~8 s), so Re-apply moves it to Advanced with Opus, its VBitrate (capped 8500) and ABitrate. Key names
+  checked in the installed OBS (obs64.exe, obs-webrtc forces bf=0). The user's own OBS untouched (Random Questions
+  fixes it). Guide and CLAUDE.md rule updated. Tests 354.
+- **Friend's copy rebuilt** (user's "rebuild"): zip + installer PASS, uploaded over v1.0 with `gh release upload
+  --clobber` (worked this time), notes updated; zip 0994cc72..., installer 2087922a...; GitHub's digests match.
+  Test copy `build/friend-test/` refreshed with it.
+- **README visuals** (bac8f08): how-it-works diagram (light + dark SVG in `<picture>`), 0.5x vs 1.6x still from the
+  user's clip (`compare.jpg`), a picture in each settings tab's fold-out, the Pre-show check, Get started with the
+  encoder choice. Made with a pretend engine. A screen grab caught the user's real camera window on top and was
+  thrown away; captures now use PrintWindow (scratch `winshot.py`), which can't show other windows. Slop check: 0.
+- Resources 2026-11-28 12:42: Webcam 2 processes, CPU 194% of a core (6.0% of the PC), RAM 337 MB, disk 816 MB;
+  whole PC CPU 24% of 32 threads, RAM 31.8 of 64 GB, GPU 34%.
 - 2026-11-26: demo zoom clip in the README (`docs/images/zoom.webp`, 9 s animated WebP, 360 px, 3.8 MB, cut with ffmpeg
   from the user's own Ctrl+Alt+0 clip `Videos\Taco Cam clips\Taco Cam 2026-11-26 13-40-31.mp4`, seconds 21.5-30.5;
   GIF was 6-7.5 MB, so WebP). The PC monitor in the shot is unreadable at that size. Slop check third pass: 0 hits.

@@ -330,9 +330,9 @@
       ]
     },
     {
-      "title": "Demo clip, share picture, Android phone test restarted",
+      "title": "Encoder choice (x264 / NVENC), friend's copy rebuilt, README visuals",
       "date": "2026-11-28",
-      "summary": "Cut the user's zoom clip into a README loop, confirmed the uploaded share picture, and refreshed the Android test copy.",
+      "summary": "Zoom clip and share picture done, iPhone reconnect fixed, an NVENC/x264 choice in Get started (requested by the Random Questions session), friend's copy rebuilt and re-uploaded, README pictures.",
       "stages": [
         {
           "name": "Polish",
@@ -342,13 +342,23 @@
               "id": "d8f52793",
               "role": "Webcam session",
               "start": "2026-11-26T13:35",
-              "end": "2026-11-28T11:55",
-              "did": "zoom.webp from the user's clip, share picture check, friend-test refreshed, phone test steps",
+              "end": "2026-11-28T12:45",
+              "did": "zoom.webp, share picture check, iPhone reconnect, NVENC/x264 encoder choice + Simple-mode fix, rebuild + release upload, README diagram/comparison/tab pictures",
               "outcome": "done",
-              "files": 4
+              "files": 24
             }
           ]
         }
+      ],
+      "events": [
+        {
+          "time": "2026-11-28T12:00",
+          "text": "Random Questions session asked for the encoder choice (cross-session message)"
+        }
+      ],
+      "lessons": [
+        "Screen grabs catch whatever window is on top: capture a window's own pixels with PrintWindow.",
+        "OBS Simple output mode has no NVENC keyframe setting; Whatnot's profile needs Advanced for NVENC."
       ]
     }
   ]
